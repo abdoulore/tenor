@@ -1,0 +1,19 @@
+{
+  "name": "route-flip-test",
+  "version": "0.1.0",
+  "description": "Kill test for Route: does the cheapest Bitget wrapper for a stock bet ever actually change?",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "selftest": "tsx flip-test.ts --selftest",
+    "run": "tsx flip-test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}

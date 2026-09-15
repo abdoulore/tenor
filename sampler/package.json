@@ -1,0 +1,17 @@
+{
+  "name": "tenor-sampler",
+  "version": "1.0.0",
+  "description": "Continuous Bitget orderbook depth sampler for Tenor. Zero dependencies.",
+  "type": "module",
+  "private": true,
+  "main": "sample.mjs",
+  "scripts": {
+    "start": "node sample.mjs",
+    "once": "node sample.mjs --once",
+    "selftest": "node sample.mjs --selftest",
+    "summary": "node summarize.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

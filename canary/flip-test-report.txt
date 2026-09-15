@@ -1,0 +1,285 @@
+
+==============================================================================
+ROUTE FLIP TEST: GO
+==============================================================================
+
+  118 of 206 tickers dropped as too thin to trade; the verdict uses the remaining 88.
+  35 of 88 tickers have a median crossover between 1 and 60 days.
+  The cheaper route is genuinely contested at 7, 14, 30, 90 day horizons.
+
+  1173 rTokens and 786 USDT perps listed; 240 tickers have both.
+  rTokens identified by the isReality flag.
+  Stock perps identified by a marker on the perp instrument.
+  34 tickers dropped as crypto collisions, for example RIO, T, STX.
+  118 of 206 remaining perps are below the volume floor and are reported separately.
+  Funding history from the v3 endpoint, 120-day lookback, 7-day trailing estimator.
+
+  Assumed fees: spot 10.00bp per side, perp 6.00bp per side.
+  Round trip: rToken 20.00bp, perp 12.00bp. Gap 8.00bp.
+
+SHORTLIST: liquid tickers whose answer actually moves
+
+  SOXL SNDK MSTR SPCX MU CRCL SNXX DRAM INTC NVDA GOOGL TSLA MRVL COIN MSFT AAPL QQQ META ORCL SPY AMZN AVGO EWY TQQQ LITE NBIS ARM RKLB AAOI CBRS AXTI GLW TSM IONQ FLY
+
+  This is the product's universe. Everything outside it has a static answer.
+
+PER TICKER (liquid enough to trade)
+
+ticker  |  perp vol  |  days  |  med daily fund  |  crossover p25/med/p75  |  neg fund  |  perp@1d  |  perp@3d  |  perp@7d  |  perp@14d  |  perp@30d  |  perp@90d
+------------------------------------------------------------------------------
+ABNB    |     355K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+AMAT    |     364K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |     93%  |     92%  |     90%
+AMD     |     4.1M  |    90  |     0.00bp  |  16.2d / always / always  |     2%  |    100%  |    100%  |     89%  |     77%  |     65%  |     57%
+APLD    |     324K  |    90  |     0.00bp  |  always / always / always  |     4%  |    100%  |    100%  |    100%  |     93%  |     93%  |     93%
+APP     |     369K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |     95%  |     86%  |     83%  |     77%  |     77%
+ASTS    |     604K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+AVAV    |     251K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BABA    |     476K  |    90  |     0.00bp  |  15.9d / always / always  |     1%  |    100%  |    100%  |     92%  |     76%  |     66%  |     65%
+BE      |     1.7M  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BMNR    |     1.2M  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |     93%  |     90%  |     87%  |     87%
+CONL    |     835K  |    71  |     0.00bp  |  207.4d / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     88%  |     77%
+COP     |     454K  |    90  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |    100%  |     89%  |     88%
+CRDO    |     1.7M  |    90  |     0.00bp  |  70.4d / always / always  |     2%  |    100%  |    100%  |    100%  |     88%  |     77%  |     73%
+CRWD    |     465K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |     99%  |     99%
+CRWV    |     2.7M  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |     92%  |     88%  |     78%  |     77%
+DDOG    |     544K  |    36  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+DELL    |     4.6M  |    90  |     0.00bp  |  always / always / always  |     5%  |    100%  |    100%  |    100%  |     95%  |     75%  |     75%
+ETN     |     656K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |     99%  |     98%  |     98%  |     98%  |     98%
+HOOD    |     4.8M  |    90  |     0.00bp  |  44.0d / always / always  |     1%  |    100%  |    100%  |     92%  |     89%  |     78%  |     61%
+HPE     |     966K  |    90  |     0.00bp  |  24.1d / always / always  |     2%  |    100%  |    100%  |     95%  |     81%  |     71%  |     63%
+IBM     |     488K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |     93%  |     83%  |     82%
+IREN    |     1.3M  |    90  |     0.00bp  |  16.1d / always / always  |     1%  |    100%  |    100%  |     90%  |     87%  |     71%  |     71%
+KWEB    |     369K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+LLY     |     261K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+MARA    |     1.4M  |    20  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+MRNA    |     3.4M  |    26  |     0.04bp  |  62.4d / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     80%  |     50%
+MSTU    |     4.1M  |    71  |     0.00bp  |  8.4d / always / always  |     3%  |    100%  |     89%  |     78%  |     73%  |     73%  |     69%
+MVLL    |     1.1M  |    83  |     0.00bp  |  45.1d / always / always  |     6%  |    100%  |    100%  |     99%  |     86%  |     78%  |     74%
+NET     |     1.1M  |    29  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+NKE     |     406K  |    90  |    -0.01bp  |  5.8d / always / always  |     4%  |     95%  |     77%  |     70%  |     67%  |     66%  |     60%
+NOW     |     651K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |     99%  |     99%
+OKLO    |     309K  |    90  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |     93%  |     93%  |     84%
+PANW    |     653K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |     99%
+PLTR    |     6.0M  |    90  |     0.00bp  |  always / always / always  |     6%  |    100%  |    100%  |     99%  |     99%  |     99%  |     99%
+PURR    |     314K  |    20  |    -0.36bp  |  always / always / always  |     7%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+QCOM    |     1.1M  |    90  |     0.00bp  |  24.8d / always / always  |     0%  |    100%  |    100%  |     92%  |     88%  |     69%  |     60%
+RAM     |     473K  |    82  |     0.00bp  |  54.3d / always / always  |     5%  |    100%  |    100%  |     89%  |     87%  |     79%  |     73%
+RDDT    |     631K  |    90  |    -0.27bp  |  7.5d / always / always  |     7%  |     92%  |     88%  |     75%  |     73%  |     71%  |     71%
+SKHY    |    32.9M  |    76  |    -0.82bp  |  11.3d / always / always  |    16%  |    100%  |     99%  |     81%  |     74%  |     72%  |     72%
+SMCI    |     573K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |     92%  |     83%  |     80%  |     75%
+SOXS    |    10.7M  |    90  |    -1.79bp  |  155.6d / always / always  |    18%  |    100%  |     99%  |     93%  |     90%  |     81%  |     77%
+SOXX    |     991K  |    78  |     0.00bp  |  82.4d / always / always  |     0%  |    100%  |    100%  |    100%  |     92%  |     79%  |     69%
+SQQQ    |     513K  |    90  |     0.00bp  |  226.7d / always / always  |     3%  |    100%  |    100%  |    100%  |    100%  |     98%  |     77%
+STRC    |     608K  |    84  |     0.00bp  |  700.0d / always / always  |     1%  |    100%  |     92%  |     91%  |     88%  |     79%  |     78%
+TEM     |     742K  |    26  |     0.00bp  |  6.3d / always / always  |     0%  |    100%  |    100%  |     70%  |     70%  |     70%  |     65%
+USAR    |     906K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+UVXY    |     426K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |     99%
+WDC     |     1.3M  |    90  |     0.00bp  |  78.3d / always / always  |     0%  |    100%  |    100%  |     99%  |     83%  |     77%  |     75%
+COHR    |     3.2M  |    90  |     0.01bp  |  24.3d / 933.3d / always  |     1%  |    100%  |    100%  |     90%  |     83%  |     69%  |     54%
+ASML    |     641K  |    90  |     0.05bp  |  20.9d / 160.0d / always  |     1%  |    100%  |    100%  |     96%  |     87%  |     64%  |     61%
+MSFT    |     6.5M  |    90  |     0.14bp  |  14.8d / 56.6d / always  |     0%  |    100%  |    100%  |     93%  |     76%  |     60%  |     39%
+NBIS    |     2.4M  |    90  |     0.15bp  |  6.7d / 54.9d / always   |     3%  |    100%  |    100%  |     73%  |     60%  |     59%  |     48%
+AVGO    |     3.2M  |    90  |     0.18bp  |  5.3d / 44.8d / always   |     0%  |    100%  |     78%  |     67%  |     67%  |     59%  |     46%
+AXTI    |     1.4M  |    90  |     0.19bp  |  14.8d / 42.4d / always  |     3%  |    100%  |    100%  |     95%  |     76%  |     66%  |     45%
+SPY     |     4.0M  |    90  |     0.30bp  |  12.8d / 26.3d / 1866.7d  |     0%  |    100%  |    100%  |     93%  |     72%  |     45%  |     39%
+LITE    |     2.5M  |    90  |     0.33bp  |  12.0d / 24.5d / 47.1d   |     1%  |    100%  |     99%  |     88%  |     65%  |     30%  |     14%
+ORCL    |     4.8M  |    90  |     0.34bp  |  6.7d / 23.8d / 190.3d   |     1%  |    100%  |     93%  |     75%  |     64%  |     49%  |     36%
+AMZN    |     3.3M  |    90  |     0.35bp  |  10.0d / 22.8d / 62.3d   |     0%  |    100%  |    100%  |     77%  |     65%  |     45%  |     23%
+NVDA    |    15.5M  |    90  |     0.36bp  |  7.6d / 22.5d / always   |     0%  |    100%  |     98%  |     82%  |     59%  |     49%  |     47%
+GLW     |     1.3M  |    90  |     0.41bp  |  4.0d / 19.5d / 3266.7d  |     3%  |    100%  |     88%  |     59%  |     52%  |     40%  |     31%
+TSLA    |    12.6M  |    90  |     0.42bp  |  6.2d / 19.0d / always   |     1%  |    100%  |    100%  |     66%  |     57%  |     45%  |     37%
+FLY     |     552K  |    90  |     0.47bp  |  2.1d / 17.1d / always   |     7%  |     94%  |     66%  |     55%  |     51%  |     49%  |     48%
+ARM     |     2.3M  |    90  |     0.47bp  |  5.9d / 17.1d / 34.7d    |     2%  |    100%  |     98%  |     73%  |     57%  |     31%  |     16%
+MSTR    |    42.7M  |    90  |     0.48bp  |  6.5d / 16.8d / 105.7d   |     2%  |    100%  |    100%  |     67%  |     57%  |     36%  |     29%
+IONQ    |     569K  |    90  |     0.51bp  |  5.6d / 15.6d / always   |     0%  |     99%  |     88%  |     61%  |     52%  |     42%  |     30%
+EWY     |     2.9M  |    90  |     0.59bp  |  6.3d / 13.6d / 258.3d   |     6%  |    100%  |     92%  |     65%  |     43%  |     34%  |     33%
+AAPL    |     6.2M  |    90  |     0.65bp  |  5.9d / 12.3d / always   |     1%  |    100%  |     93%  |     67%  |     48%  |     46%  |     46%
+CBRS    |     1.6M  |    90  |     0.71bp  |  3.3d / 11.2d / always   |     5%  |    100%  |     77%  |     61%  |     47%  |     45%  |     41%
+META    |     5.5M  |    90  |     0.72bp  |  3.4d / 11.2d / always   |     0%  |    100%  |     78%  |     53%  |     46%  |     36%  |     35%
+SNXX    |    26.8M  |    64  |     0.82bp  |  5.2d / 9.7d / 41.8d     |     9%  |    100%  |     86%  |     63%  |     42%  |     28%  |     25%
+TQQQ    |     2.7M  |    90  |     0.88bp  |  5.1d / 9.1d / always    |     5%  |    100%  |     96%  |     55%  |     47%  |     41%  |     41%
+MRVL    |     9.6M  |    90  |     0.91bp  |  2.7d / 8.8d / 25.9d     |     3%  |    100%  |     71%  |     57%  |     40%  |     22%  |     17%
+TSM     |     1.1M  |    90  |     1.05bp  |  4.1d / 7.6d / 50.7d     |     1%  |    100%  |     88%  |     51%  |     31%  |     27%  |     24%
+SNDK    |   113.6M  |    90  |     1.05bp  |  2.0d / 7.6d / 57.0d     |     7%  |     96%  |     66%  |     53%  |     37%  |     28%  |     22%
+INTC    |    15.5M  |    90  |     1.17bp  |  3.6d / 6.8d / 28.8d     |     2%  |    100%  |     82%  |     48%  |     33%  |     25%  |      5%
+AAOI    |     2.1M  |    90  |     1.27bp  |  2.4d / 6.3d / 21.5d     |     4%  |    100%  |     66%  |     42%  |     34%  |     24%  |     12%
+MU      |    32.1M  |    90  |     1.67bp  |  2.5d / 4.8d / 8.8d      |     1%  |    100%  |     69%  |     34%  |     20%  |     10%  |     10%
+DRAM    |    21.3M  |    90  |     1.71bp  |  2.6d / 4.7d / 8.1d      |     3%  |     98%  |     67%  |     34%  |     18%  |     12%  |      7%
+COIN    |     8.2M  |    90  |     1.79bp  |  3.2d / 4.5d / 6.0d      |     0%  |    100%  |     78%  |     22%  |      4%  |      0%  |      0%
+QQQ     |     5.8M  |    90  |     1.86bp  |  3.1d / 4.3d / 14.3d     |     0%  |    100%  |     78%  |     34%  |     25%  |      7%  |      5%
+RKLB    |     2.1M  |    90  |     1.90bp  |  2.4d / 4.2d / 8.9d      |     1%  |    100%  |     60%  |     28%  |     20%  |      8%  |      8%
+CRCL    |    27.3M  |    90  |     2.22bp  |  2.1d / 3.6d / 7.6d      |     1%  |    100%  |     60%  |     28%  |     13%  |      8%  |      8%
+SOXL    |   136.7M  |    90  |     2.54bp  |  2.1d / 3.2d / 5.8d      |     4%  |    100%  |     52%  |     20%  |     12%  |      6%  |      6%
+GOOGL   |    12.8M  |    90  |     2.78bp  |  1.4d / 2.9d / 4.3d      |     0%  |     89%  |     48%  |      4%  |      1%  |      0%  |      0%
+SPCX    |    34.3M  |    90  |     3.54bp  |  1.6d / 2.3d / always    |     6%  |    100%  |     48%  |     46%  |     42%  |     41%  |     41%
+ZS      |     1.6M  |    13  |     8.57bp  |  17.1h / 23.1h / 1.1d    |     3%  |     50%  |      0%  |      0%  |      0%  |      0%  |      0%
+GTLB    |     5.5M  |    13  |     8.70bp  |  19.6h / 22.1h / 22.2h   |     3%  |     17%  |      0%  |      0%  |      0%  |      0%  |      0%
+TEAM    |     1.0M  |    13  |    10.46bp  |  17.9h / 18.4h / 18.9h   |     3%  |     17%  |      0%  |      0%  |      0%  |      0%  |      0%
+
+TOO THIN TO TRADE (perp under 250K or rToken under 50K in 24h, excluded from the verdict)
+
+ticker  |  perp vol  |  days  |  med daily fund  |  crossover p25/med/p75  |  neg fund  |  perp@1d  |  perp@3d  |  perp@7d  |  perp@14d  |  perp@30d  |  perp@90d
+------------------------------------------------------------------------------
+AAL     |      30K  |    78  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+ACHR    |      16K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+ADBE    |     173K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     90%  |     90%
+ADI     |      19K  |    85  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |     91%  |     82%
+AEHR    |     164K  |    90  |     0.00bp  |  always / always / always  |     3%  |    100%  |     92%  |     87%  |     82%  |     82%  |     82%
+ALAB    |     186K  |    89  |     0.00bp  |  151.4d / always / always  |     4%  |    100%  |     96%  |     95%  |     94%  |     82%  |     82%
+AMC     |      39K  |    90  |    -0.27bp  |  8.9d / always / always  |     9%  |     92%  |     83%  |     78%  |     67%  |     65%  |     65%
+AMGN    |      44K  |    43  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+AMKR    |      33K  |    78  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+ANET    |      43K  |    33  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+APD     |      13K  |    85  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+ASX     |      17K  |    78  |     0.00bp  |  18.3d / always / always  |     3%  |    100%  |    100%  |     90%  |     80%  |     70%  |     61%
+BA      |      65K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BAC     |      40K  |    78  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BITO    |     219K  |    49  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BKNG    |      47K  |    42  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BOTZ    |       4K  |    49  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+BSP     |      51K  |    71  |     0.00bp  |  6.5d / always / always  |     4%  |    100%  |     94%  |     67%  |     59%  |     59%  |     56%
+BX      |      51K  |    90  |    -0.08bp  |  always / always / always  |     5%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+CCL     |      81K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     94%  |     92%
+CGNX    |      17K  |    90  |     0.00bp  |  85.1d / always / always  |     2%  |    100%  |     94%  |     92%  |     92%  |     82%  |     75%
+CIEN    |      67K  |    90  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+CMCSA   |      27K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+COST    |      71K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+CPNG    |      27K  |    61  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+CRM     |      88K  |    78  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |     99%  |     99%  |     99%
+CSCO    |      35K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+DE      |      22K  |    22  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+DJT     |      91K  |    21  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+DKNG    |     138K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+DXYZ    |      24K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |     92%  |     84%  |     76%  |     76%  |     76%
+ECHO    |      36K  |    71  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |     98%  |     92%  |     81%  |     81%
+EWJ     |      75K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |     95%  |     84%  |     83%  |     82%
+EWZ     |      38K  |    43  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+FLEX    |      88K  |    85  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     91%  |     91%
+FOXA    |      94K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |     93%  |     83%  |     83%  |     83%  |     77%
+FUTU    |     224K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+FWDI    |     109K  |    71  |     0.00bp  |  1.3d / always / always  |     8%  |     77%  |     69%  |     69%  |     69%  |     69%  |     69%
+GE      |     206K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |     92%
+GEV     |     161K  |    85  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |     95%  |     91%  |     87%  |     87%
+GFS     |      20K  |    42  |     0.00bp  |  6.1d / always / always  |     0%  |    100%  |     81%  |     72%  |     64%  |     56%  |     56%
+GILD    |      22K  |    49  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+GME     |     185K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+GS      |      21K  |    85  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+IBB     |       5K  |    49  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+INDA    |      73K  |    90  |    -0.66bp  |  always / always / always  |    10%  |    100%  |     92%  |     92%  |     92%  |     92%  |     88%
+INFQ    |      33K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |     92%
+ISRG    |      65K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+IWM     |      49K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+JD      |      62K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+JMKE    |       7K  |    47  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+JOBY    |      53K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+JPM     |      57K  |    85  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+KLAC    |     158K  |    85  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+KO      |     220K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+KSTR    |      93K  |    71  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+KTOS    |      50K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |     92%  |     92%
+LIN     |      48K  |    85  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |     94%
+LMT     |      22K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+LRCX    |     129K  |    89  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |     98%  |     90%
+LWLG    |      18K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |     87%  |     83%  |     80%  |     77%
+LYTE    |      96K  |    29  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     86%  |     86%
+MAR     |      15K  |    90  |    -0.52bp  |  always / always / always  |     4%  |    100%  |    100%  |     96%  |     92%  |     92%  |     92%
+MCD     |     184K  |    90  |     0.00bp  |  20.2d / always / always  |     0%  |    100%  |     88%  |     78%  |     78%  |     70%  |     70%
+MDB     |     124K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |     83%  |     83%  |     83%  |     83%
+MELI    |      61K  |    36  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |     77%  |     77%  |     77%  |     77%
+MP      |     175K  |    90  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |     92%  |     83%  |     83%
+MRK     |     123K  |    26  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+NFLX    |     155K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+NIO     |      43K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |     99%  |     99%
+NOC     |      11K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     94%  |     94%
+NTAP    |      13K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |     92%  |     83%  |     83%  |     81%
+NVDL    |     136K  |    57  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |     88%
+NVS     |      14K  |    13  |    -2.52bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+OKTA    |     236K  |    18  |    -0.45bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |     83%  |     83%
+ONDS    |     229K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |     92%  |     92%  |     92%  |     92%
+OSS     |      17K  |    90  |     0.00bp  |  6.4d / always / always  |     2%  |     92%  |     83%  |     73%  |     64%  |     60%  |     59%
+OXY     |      40K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+PDD     |      86K  |    78  |     0.00bp  |  6.0d / always / always  |     3%  |    100%  |     90%  |     73%  |     55%  |     55%  |     54%
+PEP     |      15K  |    42  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |     86%  |     86%  |     86%
+POET    |      29K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |     92%  |     83%
+PYPL    |      42K  |    43  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+QBTS    |      54K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+QUBT    |      26K  |    90  |     0.00bp  |  always / always / always  |     6%  |    100%  |    100%  |     95%  |     95%  |     95%  |     87%
+RDW     |     112K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+RGTI    |      86K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+ROK     |      63K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+SGOV    |       3K  |    90  |     0.00bp  |  always / always / always  |     8%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+SHOP    |      71K  |    43  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |     92%  |     92%
+SITM    |      36K  |    90  |     0.00bp  |  238.0d / always / always  |     3%  |    100%  |    100%  |     89%  |     75%  |     75%  |     75%
+SMH     |     143K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+SMR     |     138K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+SNOW    |     108K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |     98%  |     98%  |     94%
+SOFI    |      74K  |    55  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+SONY    |      25K  |    83  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |     99%  |     89%
+SSPC    |      29K  |    42  |     0.00bp  |  always / always / always  |     1%  |    100%  |     81%  |     81%  |     78%  |     78%  |     78%
+TER     |      72K  |    89  |     0.00bp  |  always / always / always  |     3%  |    100%  |     94%  |     89%  |     79%  |     76%  |     74%
+TM      |      19K  |    61  |     0.00bp  |  always / always / always  |     3%  |    100%  |    100%  |    100%  |     96%  |     91%  |     87%
+TSEM    |      93K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+TTWO    |      87K  |    71  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+TWLO    |      54K  |    90  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |     92%  |     83%  |     83%  |     75%
+TXN     |      34K  |    78  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+TZA     |      67K  |    57  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+UBER    |     195K  |    36  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+UNH     |      27K  |    90  |     0.00bp  |  always / always / always  |     4%  |    100%  |     99%  |     92%  |     92%  |     92%  |     92%
+V       |      11K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+VEEV    |      24K  |    18  |    -0.42bp  |  always / always / always  |     4%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+VOO     |       6K  |    78  |     0.00bp  |  always / always / always  |     2%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+VRT     |     182K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+WMT     |      72K  |    90  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+XBI     |       9K  |    64  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |     93%  |     93%
+XLK     |       8K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+XLU     |      34K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |     92%
+XLV     |      12K  |    49  |     0.00bp  |  always / always / always  |     0%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+XOM     |      63K  |    90  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |     94%  |     94%  |     92%
+ZM      |      19K  |    43  |     0.00bp  |  always / always / always  |     1%  |    100%  |    100%  |    100%  |    100%  |    100%  |    100%
+SIMO    |      46K  |    90  |     0.10bp  |  19.8d / 81.2d / always  |     3%  |    100%  |     92%  |     92%  |     84%  |     72%  |     49%
+VST     |     160K  |    43  |     1.13bp  |  5.8d / 7.1d / 560.0d    |     1%  |    100%  |     81%  |     67%  |     39%  |     39%  |     36%
+
+ACROSS LIQUID TICKERS
+
+    1d: perp cheaper on   97% of days,   16 recommendation changes, hindsight agreement 95%   perp always
+    3d: perp cheaper on   89% of days,  141 recommendation changes, hindsight agreement 87%   perp always
+    7d: perp cheaper on   76% of days,  278 recommendation changes, hindsight agreement 82%   CONTESTED
+   14d: perp cheaper on   69% of days,  300 recommendation changes, hindsight agreement 76%   CONTESTED
+   30d: perp cheaper on   62% of days,  320 recommendation changes, hindsight agreement 71%   CONTESTED
+   90d: perp cheaper on   57% of days,  315 recommendation changes, hindsight agreement 65%   CONTESTED
+
+EXCLUDED: 34 ticker collisions
+
+  RIO: RIOUSDT is not marked as a stock perp
+  T: TUSDT is not marked as a stock perp
+  STX: STXUSDT is not marked as a stock perp
+  O: OUSDT is not marked as a stock perp
+  CL: CLUSDT is not marked as a stock perp
+  VALE: VALEUSDT is not marked as a stock perp
+  B: BUSDT is not marked as a stock perp
+  A: AUSDT is not marked as a stock perp
+  DIA: DIAUSDT is not marked as a stock perp
+  CFG: CFGUSDT is not marked as a stock perp
+  BNT: BNTUSDT is not marked as a stock perp
+  SUN: SUNUSDT is not marked as a stock perp
+  HPQ: HPQUSDT is not marked as a stock perp
+  H: HUSDT is not marked as a stock perp
+  W: WUSDT is not marked as a stock perp
+  AR: ARUSDT is not marked as a stock perp
+  WAL: WALUSDT is not marked as a stock perp
+  FORM: FORMUSDT is not marked as a stock perp
+  MET: METUSDT is not marked as a stock perp
+  Q: QUSDT is not marked as a stock perp
+  NMR: NMRUSDT is not marked as a stock perp
+  BCH: BCHUSDT is not marked as a stock perp
+  SNX: SNXUSDT is not marked as a stock perp
+  OPEN: OPENUSDT is not marked as a stock perp
+  DASH: DASHUSDT is not marked as a stock perp
+  ... and 9 more, see the JSON
+
+NOT MODELED
+
+  Spreads: Bitget exposes no historical orderbook, so entry and exit spread is absent.
+  Also absent: dividends, Stock+, collateral value, slippage, funding-cap regime changes.
+  Volume is a 24h snapshot taken now, not over the funding window.
+  Each of those favours the rToken, so NO-GO here is decisive and GO still needs the cost model.
