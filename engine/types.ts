@@ -109,6 +109,9 @@ export interface RouteResult {
   absorbableUsd: number | null;
 
   feeBp: number | null;
+  /** Where this route's fee rate came from, so a reader never has to ask. */
+  feeProvenance: "measured" | "published" | null;
+  feeSource: string | null;
   executionBp: number | null;
   fundingBp: Range | null;
   totalBp: Range | null;

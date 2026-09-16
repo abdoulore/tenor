@@ -47,7 +47,7 @@ export interface FillReceipt {
   note?: string;
 }
 
-const perpFill = (side: string, price: number, fee: number): FillReceipt => ({
+const perpFill = (side: string, price: number, fee: number, orderId: string): FillReceipt => ({
   id: `perp-nvda-${side.replace(/\s+/g, "-")}`,
   venue: "perp",
   symbol: "NVDAUSDT",
@@ -58,7 +58,7 @@ const perpFill = (side: string, price: number, fee: number): FillReceipt => ({
   feeRaw: fee,
   feeCurrency: "USDT",
   impliedRate: fee / (price * 0.05),
-  orderId: null,
+  orderId,
 });
 
 /**
@@ -69,8 +69,10 @@ const perpFill = (side: string, price: number, fee: number): FillReceipt => ({
  * measured on both sides of both directions, so it is not a rebate that only applies to one
  * side.
  *
- * Order numbers are not recorded yet. The receipts are traceable by symbol, price and fee
- * without them, but the ids should be filled in before the submission cites these.
+ * The four perp fills carry their exchange order numbers. The rGOOGL spot fill does not: the
+ * order screen for it did not display one. It is stored as null rather than omitted, so the
+ * gap is visible rather than silently absent, and the fill stays traceable by symbol, notional
+ * and fee.
  */
 export const FILL_RECEIPTS: FillReceipt[] = [
   {
@@ -86,14 +88,15 @@ export const FILL_RECEIPTS: FillReceipt[] = [
     impliedRate: (0.00217211 * 1.9067) / 10.489708,
     orderId: null,
     note:
+      "No order number: the rGOOGL order screen did not display one. " +
       "Fee paid in BGB, so the implied rate depends on the BGB price. Valued at 1.9067 USDT " +
       "this is 3.9482bp. The nearest published tier is 0.04%, reached as the 0.05% tier with " +
       "the 20% BGB discount, and the 1.3% shortfall is BGB drift between the fill and the lookup.",
   },
-  perpFill("open long", 213.55, 0.0064065),
-  perpFill("close long", 213.58, 0.0064074),
-  perpFill("open short", 213.53, 0.0064059),
-  perpFill("close short", 213.54, 0.0064062),
+  perpFill("open long", 213.55, 0.0064065, "1484049356062105601"),
+  perpFill("close long", 213.58, 0.0064074, "1484049393424965633"),
+  perpFill("open short", 213.53, 0.0064059, "1484049459409756161"),
+  perpFill("close short", 213.54, 0.0064062, "1484049475989839873"),
 ];
 
 // ---------------------------------------------------------------- schedules
@@ -150,12 +153,12 @@ export const DEFAULT_FEES: FeeSchedule = ACCOUNT_FEES;
 
 export const bp = (fraction: number): number => fraction * 10_000;
 
-const legFor = (route: "rtoken" | "perp" | "stockplus", fees: FeeSchedule): FeeLeg =>
+export const feeLegFor = (route: "rtoken" | "perp" | "stockplus", fees: FeeSchedule): FeeLeg =>
   route === "rtoken" ? fees.spot : route === "perp" ? fees.perp : fees.stockplus;
 
 /** Round trip fee in bp for a route under a schedule. */
 export function roundTripFeeBp(route: "rtoken" | "perp" | "stockplus", fees: FeeSchedule): number {
-  return bp(legFor(route, fees).taker) * 2;
+  return bp(feeLegFor(route, fees).taker) * 2;
 }
 
 /** Caveats worth surfacing to the user, one per leg that carries one. */

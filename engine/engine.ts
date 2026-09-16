@@ -12,7 +12,7 @@
  */
 
 import { absorbable, execution, isEmpty } from "./book.ts";
-import { DEFAULT_FEES, feeCaveats, feeGapBp, roundTripFeeBp, unverifiedLegs, type FeeSchedule } from "./fees.ts";
+import { DEFAULT_FEES, feeCaveats, feeGapBp, feeLegFor, roundTripFeeBp, unverifiedLegs, type FeeSchedule } from "./fees.ts";
 import { checkEligibility, ROUTE_LABELS } from "./eligibility.ts";
 import { projectFunding, type Settlement } from "./funding.ts";
 import type {
@@ -104,6 +104,8 @@ function priceRoute(
     execution: null,
     absorbableUsd: null,
     feeBp: null,
+    feeProvenance: null,
+    feeSource: null,
     executionBp: null,
     fundingBp: null,
     totalBp: null,
@@ -150,6 +152,8 @@ function priceRoute(
       ...base,
       status: "modeled",
       feeBp: round(roundTripFeeBp(route, fees), 4),
+      feeProvenance: feeLegFor(route, fees).provenance,
+      feeSource: feeLegFor(route, fees).source,
       reason:
         "Stock+ has no reachable order book, so execution cost is unknown and it is not ranked. " +
         `Round trip fee alone is ${round(roundTripFeeBp(route, fees), 2)}bp from the published schedule.`,
@@ -222,6 +226,8 @@ function priceRoute(
     execution: exec,
     absorbableUsd: book && !isEmpty(book) ? absorbable(book) : null,
     feeBp: round(feeBp, 4),
+    feeProvenance: feeLegFor(route, fees).provenance,
+    feeSource: feeLegFor(route, fees).source,
     executionBp: round(executionBp, 4),
     fundingBp,
     totalBp,

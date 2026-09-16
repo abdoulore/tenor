@@ -16,3 +16,8 @@ sampler/data/universe.json
 engine/predictions/*.ndjson
 engine/predictions/*.log
 engine/predictions/*.pid
+
+# Local backup mirror. Off-machine destination is set via BACKUP_DIR.
+.backup/
+ops/*.log
+ops/*.pid

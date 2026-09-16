@@ -100,8 +100,17 @@ check("perp fills cover open and close",
 check("the measured perp rate matches the fills",
   near(ACCOUNT_FEES.perp.taker, perpReceipts[0].impliedRate, 1e-12));
 check("a spot receipt is recorded", FILL_RECEIPTS.some((r) => r.venue === "spot"));
-check("order numbers are absent and recorded as absent",
-  FILL_RECEIPTS.every((r) => r.orderId === null));
+check("every perp fill carries its exchange order number",
+  perpReceipts.every((r) => /^\d{19}$/.test(r.orderId ?? "")),
+  perpReceipts.map((r) => r.orderId).join(" "));
+check("perp order numbers are distinct",
+  new Set(perpReceipts.map((r) => r.orderId)).size === 4);
+// The spot fill has no order number because the order screen did not show one. That gap is
+// recorded as null and explained, rather than omitted so it looks like nobody checked.
+check("the spot fill records its missing order number as null",
+  FILL_RECEIPTS.find((r) => r.venue === "spot")!.orderId === null);
+check("the spot fill says why it has no order number",
+  /did not display one/.test(FILL_RECEIPTS.find((r) => r.venue === "spot")!.note ?? ""));
 
 // ---------------------------------------------------------------- book walking
 
@@ -232,6 +241,17 @@ group("engine: gates");
   check("Stock+ admits execution is unknown", sp.executionBp === null && sp.totalBp === null);
   check("Stock+ is kept out of the ranking", sp.rank === null);
   check("Stock+ says why it is not ranked", /not ranked/i.test(sp.reason ?? ""));
+  // Anyone reading a number should see where the fee came from without asking.
+  const rt = q.routes.find((r) => r.route === "rtoken")!;
+  const pp = q.routes.find((r) => r.route === "perp")!;
+  check("rToken quote labels its fee as measured", rt.feeProvenance === "measured", `${rt.feeProvenance}`);
+  check("perp quote labels its fee as measured", pp.feeProvenance === "measured", `${pp.feeProvenance}`);
+  check("rToken quote names its fee source", /rGOOGL/.test(rt.feeSource ?? ""));
+  check("perp quote names its fee source", /NVDAUSDT/.test(pp.feeSource ?? ""));
+  check("a published-rate quote labels itself published",
+    priceIntent(intent(), { session: "regular", books: { rtoken: makeBook(6, 100), perp: makeBook(1, 100) },
+      funding: settlements(30, 0), now: NOW, fees: PUBLISHED_FEES })
+      .routes.find((r) => r.route === "perp")!.feeProvenance === "published");
   check("total is fee plus execution plus funding", (() => {
     const p = q.routes.find((r) => r.route === "perp")!;
     return near(p.totalBp!.mid, p.feeBp! + p.executionBp! + p.fundingBp!.mid, 1e-3);
