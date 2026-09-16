@@ -10,3 +10,9 @@ sampler/data/*.log
 sampler/data/*.pid
 sampler/data/status.json
 sampler/data/universe.json
+
+# Prediction log. Append only, cannot be backfilled, and the basis for the receipts.
+# Back these up outside git alongside the samples.
+engine/predictions/*.ndjson
+engine/predictions/*.log
+engine/predictions/*.pid

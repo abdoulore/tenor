@@ -12,7 +12,7 @@
  */
 
 import { absorbable, execution, isEmpty } from "./book.ts";
-import { ACCOUNT_FEES, feeGapBp, roundTripFeeBp, type FeeSchedule } from "./fees.ts";
+import { DEFAULT_FEES, feeCaveats, feeGapBp, roundTripFeeBp, unverifiedLegs, type FeeSchedule } from "./fees.ts";
 import { checkEligibility, ROUTE_LABELS } from "./eligibility.ts";
 import { projectFunding, type Settlement } from "./funding.ts";
 import type {
@@ -44,7 +44,7 @@ export interface PricingInputs {
 const ROUTES: RouteId[] = ["rtoken", "perp", "stockplus"];
 
 export function priceIntent(intent: Intent, inputs: PricingInputs): Quote {
-  const fees = inputs.fees ?? ACCOUNT_FEES;
+  const fees = inputs.fees ?? DEFAULT_FEES;
   const now = inputs.now ?? Date.now();
   const warnings: string[] = [];
   const results: RouteResult[] = [];
@@ -64,12 +64,16 @@ export function priceIntent(intent: Intent, inputs: PricingInputs): Quote {
 
   const horizonDecides = decidesOnHorizon(results, fees);
 
-  if (fees.unverified.length) {
+  // A leg still on a published rate may be priced too expensive. A leg measured from fills
+  // may still carry a caveat, which is a different thing and is said differently.
+  const unverified = unverifiedLegs(fees);
+  if (unverified.length) {
     warnings.push(
-      `Fee rates not confirmed against this account: ${fees.unverified.join(", ")}. ` +
-      `Those routes may be priced too expensive.`,
+      `Fee rate not confirmed against this account: ${unverified.join(", ")}. ` +
+      `Priced at the published rate, which may be too expensive.`,
     );
   }
+  for (const c of feeCaveats(fees)) if (!warnings.includes(c)) warnings.push(c);
 
   return {
     intent,

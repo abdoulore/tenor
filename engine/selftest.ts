@@ -9,10 +9,11 @@
  */
 
 import { execution, toBook } from "./book.ts";
-import { ACCOUNT_FEES, FLIP_TEST_FEES, feeGapBp, roundTripFeeBp } from "./fees.ts";
+import { ACCOUNT_FEES, FILL_RECEIPTS, FLIP_TEST_FEES, PUBLISHED_FEES, feeGapBp, roundTripFeeBp, unverifiedLegs } from "./fees.ts";
 import { checkEligibility } from "./eligibility.ts";
 import { crossoverDays, projectFunding, quantile, trailingDailyFunding, type Settlement } from "./funding.ts";
 import { betterSession, priceIntent } from "./engine.ts";
+import { predictionFile, toRecord } from "./predictions.ts";
 import { DEFAULT_CONSTRAINTS, type Book, type Intent, type SessionOutlook } from "./types.ts";
 
 let failures = 0;
@@ -64,12 +65,43 @@ function settlements(days: number, rate: number, endMs = NOW): Settlement[] {
 // ---------------------------------------------------------------- fees
 
 group("fees");
-check("account spot round trip is 8bp", near(roundTripFeeBp("rtoken", ACCOUNT_FEES), 8));
+check("account spot round trip is 7.90bp", near(roundTripFeeBp("rtoken", ACCOUNT_FEES), 7.8963, 1e-3),
+  `got ${roundTripFeeBp("rtoken", ACCOUNT_FEES)}`);
 check("account perp round trip is 12bp", near(roundTripFeeBp("perp", ACCOUNT_FEES), 12));
 check("flip test spot round trip was 20bp", near(roundTripFeeBp("rtoken", FLIP_TEST_FEES), 20));
 check("flip test fee gap was 8bp toward the perp", near(feeGapBp(FLIP_TEST_FEES), 8));
-check("account fee gap is 4bp toward the rToken", near(feeGapBp(ACCOUNT_FEES), -4),
+// 4.1037bp exactly, which is the 4.10bp the measured rates give to two decimal places.
+check("account fee gap is 4.10bp toward the rToken", near(feeGapBp(ACCOUNT_FEES), -4.10, 5e-3),
   `got ${feeGapBp(ACCOUNT_FEES)}`);
+
+// Spot and perp tiers are independent on Bitget. Nothing may infer one from the other.
+check("perp is measured, not published", ACCOUNT_FEES.perp.provenance === "measured");
+check("spot is measured, not published", ACCOUNT_FEES.spot.provenance === "measured");
+check("perp is no longer flagged unverified", !unverifiedLegs(ACCOUNT_FEES).includes("perp"));
+check("Stock+ is still flagged unverified", unverifiedLegs(ACCOUNT_FEES).includes("stockplus"));
+check("perp carries no caveat", ACCOUNT_FEES.perp.caveat === undefined);
+check("spot still carries the BGB caveat", /BGB/.test(ACCOUNT_FEES.spot.caveat ?? ""));
+check("the account perp rate equals the published perp rate",
+  ACCOUNT_FEES.perp.taker === PUBLISHED_FEES.perp.taker);
+check("the account spot rate does not equal the published spot rate",
+  ACCOUNT_FEES.spot.taker !== PUBLISHED_FEES.spot.taker);
+check("published schedule is unmeasured throughout", unverifiedLegs(PUBLISHED_FEES).length === 3);
+
+// Every fee constant must trace to a receipt.
+const perpReceipts = FILL_RECEIPTS.filter((r) => r.venue === "perp");
+check("four perp fills are recorded", perpReceipts.length === 4, `${perpReceipts.length}`);
+check("every perp fill implies exactly 0.06%",
+  perpReceipts.every((r) => near(r.impliedRate, 0.0006, 1e-12)),
+  perpReceipts.map((r) => r.impliedRate).join(" "));
+check("perp fills cover both directions",
+  perpReceipts.some((r) => /long/.test(r.side)) && perpReceipts.some((r) => /short/.test(r.side)));
+check("perp fills cover open and close",
+  perpReceipts.some((r) => /open/.test(r.side)) && perpReceipts.some((r) => /close/.test(r.side)));
+check("the measured perp rate matches the fills",
+  near(ACCOUNT_FEES.perp.taker, perpReceipts[0].impliedRate, 1e-12));
+check("a spot receipt is recorded", FILL_RECEIPTS.some((r) => r.venue === "spot"));
+check("order numbers are absent and recorded as absent",
+  FILL_RECEIPTS.every((r) => r.orderId === null));
 
 // ---------------------------------------------------------------- book walking
 
@@ -204,7 +236,9 @@ group("engine: gates");
     const p = q.routes.find((r) => r.route === "perp")!;
     return near(p.totalBp!.mid, p.feeBp! + p.executionBp! + p.fundingBp!.mid, 1e-3);
   })());
-  check("unverified perp fee raises a warning", q.warnings.some((w) => /not confirmed/i.test(w)));
+  check("the perp no longer raises an unverified warning",
+    !q.warnings.some((w) => /not confirmed/i.test(w) && /perp/.test(w)));
+  check("the BGB caveat is still surfaced", q.warnings.some((w) => /BGB/.test(w)));
 }
 
 group("engine: empty book is a headline state");
@@ -384,6 +418,63 @@ group("engine: funding actually moves the answer");
     const b = short90.routes.find((r) => r.route === "perp")!.fundingBp!.mid;
     return near(b, a * 90, 0.5);
   })());
+}
+
+// ---------------------------------------------------------------- prediction log
+
+group("prediction log");
+{
+  const base = { session: "regular" as const, funding: settlements(30, 0), now: NOW };
+
+  const contested = priceIntent(intent(), {
+    ...base, books: { rtoken: makeBook(10, 100), perp: makeBook(2, 100) },
+  });
+  const rec = toRecord(contested, "selftest");
+  check("record carries the chosen route", rec.route === contested.recommended);
+  check("record carries the predicted cost", rec.predictedBp !== null);
+  check("record carries the range, not just a point",
+    rec.predictedLowBp !== null && rec.predictedHighBp !== null);
+  check("record carries ticker, session, notional and horizon",
+    rec.ticker === "NVDA" && rec.session === "regular" && rec.notionalUsd === 2000 && rec.horizonDays === 30);
+  check("record timestamps the call", !Number.isNaN(Date.parse(rec.at)));
+  check("record id is stable for the same call", rec.id === toRecord(contested, "selftest").id);
+  check("record keeps every route's status for later diagnosis", rec.routes.length === 3);
+  check("two tradeable routes means execution decided", rec.decidedBy === "execution", rec.decidedBy);
+  check("rationale is plain language", /by \d/.test(rec.rationale), rec.rationale);
+
+  // The gate that decided is the part worth auditing later.
+  const empty = priceIntent(intent(), {
+    ...base, books: { rtoken: EMPTY_BOOK, perp: makeBook(2, 100) },
+  });
+  check("an empty book means availability decided", toRecord(empty, "t").decidedBy === "availability",
+    toRecord(empty, "t").decidedBy);
+  check("availability rationale names the missing book",
+    /no order book/i.test(toRecord(empty, "t").rationale), toRecord(empty, "t").rationale);
+
+  const tooBig = priceIntent(intent({ notionalUsd: 100_000 }), {
+    ...base, books: { rtoken: makeBook(2, 0.5, 3), perp: makeBook(2, 5000) },
+  });
+  check("an unfillable book means size decided", toRecord(tooBig, "t").decidedBy === "size",
+    toRecord(tooBig, "t").decidedBy);
+
+  const tight = priceIntent(intent(), {
+    ...base, books: { rtoken: makeBook(2, 100), perp: makeBook(1.5, 100) },
+  });
+  check("execution inside the fee gap means the horizon decided",
+    toRecord(tight, "t").decidedBy === "horizon", toRecord(tight, "t").decidedBy);
+
+  const dead = priceIntent(intent({ direction: "short", constraints: { ...DEFAULT_CONSTRAINTS, wantsVoting: true } }), {
+    ...base, books: { rtoken: makeBook(2, 100), perp: makeBook(2, 100) },
+  });
+  const deadRec = toRecord(dead, "t");
+  check("no tradeable route is still logged as a call", deadRec.decidedBy === "no_route", deadRec.decidedBy);
+  check("no tradeable route logs a null route with no invented cost",
+    deadRec.route === null && deadRec.predictedBp === null);
+
+  check("the record survives a JSON round trip",
+    JSON.parse(JSON.stringify(rec)).id === rec.id);
+  check("the file name is dated from the call, not from now",
+    predictionFile("d", new Date("2026-09-16T23:00:00Z")).endsWith("predictions-2026-09-16.ndjson"));
 }
 
 // ---------------------------------------------------------------- done

@@ -1,101 +1,185 @@
 /**
  * Fee constants.
  *
- * Every rate here either traces to an observed fill on the account or to a published
- * Bitget schedule, and each one records which. Nothing is illustrative.
+ * Every rate here traces to an observed fill on the account or to a published Bitget
+ * schedule, and each one records which. Nothing is illustrative.
+ *
+ * Spot and perp tiers are independent on Bitget. This account runs 60% below the published
+ * spot taker through its VIP tier and BGB payment, and pays the full published rate on
+ * perps. Neither is derivable from the other, so they are measured and stored separately and
+ * no code here infers one from the other.
  */
 
-export interface FeeSchedule {
+export type FeeProvenance = "measured" | "published";
+
+export interface FeeLeg {
   /** One way taker fee as a fraction of notional. */
-  spotTaker: number;
-  perpTaker: number;
-  stockPlusTaker: number;
-  source: Record<string, string>;
-  /** Rates not confirmed against this account, so they may be too high. */
-  unverified: RouteFeeFlag[];
+  taker: number;
+  provenance: FeeProvenance;
+  source: string;
+  /** Present when the rate carries a caveat the user should see. */
+  caveat?: string;
 }
 
-export type RouteFeeFlag = "spot" | "perp" | "stockplus";
+export interface FeeSchedule {
+  spot: FeeLeg;
+  perp: FeeLeg;
+  stockplus: FeeLeg;
+}
+
+export type RouteFeeKey = "spot" | "perp" | "stockplus";
+
+// ---------------------------------------------------------------- receipts
+
+export interface FillReceipt {
+  id: string;
+  venue: "spot" | "perp";
+  symbol: string;
+  side: string;
+  price: number;
+  qty: number;
+  notionalUsdt: number;
+  feeRaw: number;
+  feeCurrency: string;
+  impliedRate: number;
+  /** Exchange order number. Not supplied for these fills yet. */
+  orderId: string | null;
+  note?: string;
+}
+
+const perpFill = (side: string, price: number, fee: number): FillReceipt => ({
+  id: `perp-nvda-${side.replace(/\s+/g, "-")}`,
+  venue: "perp",
+  symbol: "NVDAUSDT",
+  side,
+  price,
+  qty: 0.05,
+  notionalUsdt: price * 0.05,
+  feeRaw: fee,
+  feeCurrency: "USDT",
+  impliedRate: fee / (price * 0.05),
+  orderId: null,
+});
 
 /**
- * Observed fill on the account, used to derive the real spot taker rate.
+ * Observed fills, kept as the audit trail behind every fee constant.
  *
- * An rGOOGL buy of 10.489708 USDT paid 0.00217211 BGB in fees. Valuing BGB at 1.9067
- * USDT gives 0.00414156 USDT, which is 3.948bp of notional. The nearest published rate is
- * 0.04%, reached as the 0.05% tier with the 20% BGB payment discount, and the 1.3% shortfall
- * is BGB drift between the fill and the price lookup.
+ * The four perp fills are 0.05 NVDA each, 1x cross, all taker, and every one implies
+ * 0.060000% one way to six decimal places against the published rate. That is zero discount,
+ * measured on both sides of both directions, so it is not a rebate that only applies to one
+ * side.
  *
- * This is the single most consequential constant in the product, because it is 60% below
- * the 0.1% the flip test assumed, so it is recorded with its full derivation rather than
- * as a bare number.
+ * Order numbers are not recorded yet. The receipts are traceable by symbol, price and fee
+ * without them, but the ids should be filled in before the submission cites these.
  */
-export const OBSERVED_SPOT_FILL = {
-  symbol: "RGOOGLUSDT",
-  notionalUsdt: 10.489708,
-  feeBgb: 0.00217211,
-  bgbUsdtAtLookup: 1.9067,
-  impliedBp: 3.9482,
-  nearestPublishedRate: 0.0004,
+export const FILL_RECEIPTS: FillReceipt[] = [
+  {
+    id: "spot-rgoogl-buy",
+    venue: "spot",
+    symbol: "RGOOGLUSDT",
+    side: "buy",
+    price: 0,
+    qty: 0,
+    notionalUsdt: 10.489708,
+    feeRaw: 0.00217211,
+    feeCurrency: "BGB",
+    impliedRate: (0.00217211 * 1.9067) / 10.489708,
+    orderId: null,
+    note:
+      "Fee paid in BGB, so the implied rate depends on the BGB price. Valued at 1.9067 USDT " +
+      "this is 3.9482bp. The nearest published tier is 0.04%, reached as the 0.05% tier with " +
+      "the 20% BGB discount, and the 1.3% shortfall is BGB drift between the fill and the lookup.",
+  },
+  perpFill("open long", 213.55, 0.0064065),
+  perpFill("close long", 213.58, 0.0064074),
+  perpFill("open short", 213.53, 0.0064059),
+  perpFill("close short", 213.54, 0.0064062),
+];
+
+// ---------------------------------------------------------------- schedules
+
+/** Bitget's published taker rates, the default for any account with no measurement. */
+export const PUBLISHED_FEES: FeeSchedule = {
+  spot: { taker: 0.001, provenance: "published", source: "Bitget standard spot taker" },
+  perp: { taker: 0.0006, provenance: "published", source: "takerFeeRate on the Bitget perp instrument" },
+  stockplus: { taker: 0.0006, provenance: "published", source: "published Bitget Stock+ schedule" },
 };
 
 /**
- * What the engine prices with.
+ * This account's measured schedule.
  *
- * spotTaker is derived from the fill above. perpTaker is the rate published on the perp
- * instrument itself (takerFeeRate 0.0006) and is NOT confirmed against this account. If the
- * account carries the same VIP tier and BGB discount on perps that it carries on spot, the
- * real perp rate is lower and every perp number here is too expensive. That biases the
- * engine toward the rToken, which is the safe direction to be wrong in, but it must be said.
- *
- * stockPlusTaker is modeled from the published schedule with no account access at all.
+ * spot is derived from the rGOOGL fill and carries a live caveat, because the rate was paid
+ * in BGB and therefore moves with the BGB price. perp is measured from four NVDA fills that
+ * agree exactly, so it carries none.
  */
 export const ACCOUNT_FEES: FeeSchedule = {
-  spotTaker: 0.0004,
-  perpTaker: 0.0006,
-  stockPlusTaker: 0.0006,
-  source: {
-    spotTaker: "derived from an observed rGOOGL fill on this account, see OBSERVED_SPOT_FILL",
-    perpTaker: "takerFeeRate published on the Bitget perp instrument, not account confirmed",
-    stockPlusTaker: "published Bitget Stock+ schedule, modeled, no account access",
+  spot: {
+    taker: 0.000394815,
+    provenance: "measured",
+    source: "observed rGOOGL fill on this account, see FILL_RECEIPTS",
+    caveat:
+      "Spot fee is paid in BGB, so the effective rate moves with the BGB price. " +
+      "Measured at 3.95bp; the published tier it sits closest to is 0.04%.",
   },
-  unverified: ["perp", "stockplus"],
+  perp: {
+    taker: 0.0006,
+    provenance: "measured",
+    source: "four observed NVDAUSDT taker fills, both directions, each implying 0.060000%",
+  },
+  stockplus: {
+    taker: 0.0006,
+    provenance: "published",
+    source: "published Bitget Stock+ schedule, no account access",
+  },
+};
+
+/** What the flip test assumed, kept so the two can be compared directly. */
+export const FLIP_TEST_FEES: FeeSchedule = {
+  spot: { taker: 0.001, provenance: "published", source: "assumed by canary/flip-test.ts" },
+  perp: { taker: 0.0006, provenance: "published", source: "assumed by canary/flip-test.ts" },
+  stockplus: { taker: 0.0006, provenance: "published", source: "not modeled by the flip test" },
 };
 
 /**
- * What the flip test assumed, kept so the two can be compared directly.
+ * The schedule the engine uses unless a caller passes its own.
  *
- * The flip test's whole thesis rested on an 8bp round trip gap in the perp's favour:
- * spot 20bp against perp 12bp. On the account's real rates the spot round trip is 8bp
- * against the perp's 12bp, so the fee gap is 4bp the other way. Fees now favour the rToken.
- * Execution cost still favours the perp by far more than 4bp on most names, so the ranking
- * mostly survives, but the reason for it has changed and any copy claiming an 8bp fee
- * advantage for the perp is now wrong.
+ * Fee tiers are configuration, not a feature. There is no UI for them and no copy about them.
+ * A rate falls back to the published one wherever this account has no measurement.
  */
-export const FLIP_TEST_FEES: FeeSchedule = {
-  spotTaker: 0.001,
-  perpTaker: 0.0006,
-  stockPlusTaker: 0.0006,
-  source: {
-    spotTaker: "Bitget standard spot taker, assumed by canary/flip-test.ts",
-    perpTaker: "Bitget standard USDT perp taker, assumed by canary/flip-test.ts",
-    stockPlusTaker: "not modeled by the flip test",
-  },
-  unverified: ["spot", "perp", "stockplus"],
-};
+export const DEFAULT_FEES: FeeSchedule = ACCOUNT_FEES;
 
 export const bp = (fraction: number): number => fraction * 10_000;
 
+const legFor = (route: "rtoken" | "perp" | "stockplus", fees: FeeSchedule): FeeLeg =>
+  route === "rtoken" ? fees.spot : route === "perp" ? fees.perp : fees.stockplus;
+
 /** Round trip fee in bp for a route under a schedule. */
 export function roundTripFeeBp(route: "rtoken" | "perp" | "stockplus", fees: FeeSchedule): number {
-  const oneWay =
-    route === "rtoken" ? fees.spotTaker : route === "perp" ? fees.perpTaker : fees.stockPlusTaker;
-  return bp(oneWay) * 2;
+  return bp(legFor(route, fees).taker) * 2;
+}
+
+/** Caveats worth surfacing to the user, one per leg that carries one. */
+export function feeCaveats(fees: FeeSchedule): string[] {
+  const out: string[] = [];
+  for (const leg of [fees.spot, fees.perp, fees.stockplus]) {
+    if (leg.caveat && !out.includes(leg.caveat)) out.push(leg.caveat);
+  }
+  return out;
+}
+
+/** Legs still priced from a published rate rather than a measurement on this account. */
+export function unverifiedLegs(fees: FeeSchedule): RouteFeeKey[] {
+  const out: RouteFeeKey[] = [];
+  if (fees.spot.provenance === "published") out.push("spot");
+  if (fees.perp.provenance === "published") out.push("perp");
+  if (fees.stockplus.provenance === "published") out.push("stockplus");
+  return out;
 }
 
 /**
  * The fee gap the horizon question turns on: rToken round trip minus perp round trip.
- * Positive means fees favour the perp, which is what the flip test found and what the
- * account's real rates reverse.
+ * Positive means fees favour the perp, which is what the flip test assumed. On this
+ * account's measured rates it is negative, so fees favour the rToken.
  */
 export function feeGapBp(fees: FeeSchedule): number {
   return roundTripFeeBp("rtoken", fees) - roundTripFeeBp("perp", fees);

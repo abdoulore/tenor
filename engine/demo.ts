@@ -9,7 +9,8 @@
 
 import { join } from "node:path";
 import { sessionLabel } from "./book.ts";
-import { ACCOUNT_FEES, FLIP_TEST_FEES, feeGapBp } from "./fees.ts";
+import { DEFAULT_FEES, FLIP_TEST_FEES, feeGapBp, roundTripFeeBp, unverifiedLegs } from "./fees.ts";
+import { logPrediction } from "./predictions.ts";
 import { betterSession, priceIntent } from "./engine.ts";
 import { fetchBook, fetchFunding, resolvePair, sessionOutlook } from "./live.ts";
 import { DEFAULT_CONSTRAINTS, type Intent, type Quote, type RouteResult, type Session } from "./types.ts";
@@ -30,6 +31,7 @@ const TICKERS = arg("--tickers", "NVDA,MSFT,AAOI,SOXL,HOOD").split(",").map((t) 
 const SIZE = Number(arg("--size", "2000"));
 const HORIZON = Number(arg("--horizon", "30"));
 const DATA_DIR = arg("--data", join(process.cwd(), "sampler", "data"));
+const PRED_DIR = arg("--predictions", join(process.cwd(), "engine", "predictions"));
 const SESSIONS: Session[] = ["premarket", "regular", "afterhours", "overnight"];
 
 const bpf = (x: number | null | undefined, dp = 2): string =>
@@ -99,9 +101,9 @@ async function main(): Promise<void> {
   console.log("=".repeat(96));
   console.log(`  live session right now: ${liveSession}`);
   console.log(`  size $${SIZE.toLocaleString()}, horizon ${HORIZON}d, long`);
-  console.log(`  fees: rToken round trip ${(ACCOUNT_FEES.spotTaker * 2 * 10_000).toFixed(2)}bp, perp round trip ${(ACCOUNT_FEES.perpTaker * 2 * 10_000).toFixed(2)}bp`);
-  console.log(`  fee gap ${feeGapBp(ACCOUNT_FEES).toFixed(2)}bp, against ${feeGapBp(FLIP_TEST_FEES).toFixed(2)}bp assumed by the flip test`);
-  console.log(`  unverified fee rates: ${ACCOUNT_FEES.unverified.join(", ")}`);
+  console.log(`  fees: rToken round trip ${(roundTripFeeBp("rtoken", DEFAULT_FEES)).toFixed(2)}bp, perp round trip ${(roundTripFeeBp("perp", DEFAULT_FEES)).toFixed(2)}bp`);
+  console.log(`  fee gap ${feeGapBp(DEFAULT_FEES).toFixed(2)}bp, against ${feeGapBp(FLIP_TEST_FEES).toFixed(2)}bp assumed by the flip test`);
+  console.log(`  unverified fee rates: ${unverifiedLegs(DEFAULT_FEES).join(", ")}`);
 
   for (const ticker of TICKERS) {
     console.log("\n" + "-".repeat(96));
@@ -151,6 +153,10 @@ async function main(): Promise<void> {
       outlook,
     });
     printQuote(live, outlook);
+
+    // Log the live recommendation the moment it is made. These lines cannot be backfilled.
+    const logged = await logPrediction(live, { dir: PRED_DIR, source: "demo" });
+    if (!logged.ok) console.log(`    WARNING prediction log failed: ${logged.error}`);
 
     /*
      * The other three sessions are counterfactuals and must come from measured medians for
