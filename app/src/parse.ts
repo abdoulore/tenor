@@ -142,90 +142,91 @@ export const deterministicParser: IntentParser = {
  * same shape. On any failure it falls back rather than blocking the surface, because a
  * parser outage must not become a product outage.
  */
-export function createModelParser(apiKey: string | undefined): IntentParser {
+/**
+ * Model parser. Calls this app's own endpoint, never Anthropic directly.
+ *
+ * The key stays on the server. Vite inlines anything prefixed VITE_ into the deployed
+ * bundle, so a key shipped that way is readable by every visitor, which is not an
+ * acceptable way to hold a credential.
+ *
+ * It returns the same object the deterministic parser returns, and falls back to it on any
+ * failure, because a parser outage must not become a product outage.
+ */
+export function createModelParser(endpoint = "/api/parse"): IntentParser {
   return {
     name: "model",
-    available: Boolean(apiKey),
+    available: true,
     async parse(text, knownTickers) {
-      if (!apiKey) return deterministicParser.parse(text, knownTickers);
       try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
+        const res = await fetch(endpoint, {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true",
-          },
-          body: JSON.stringify({
-            model: "claude-opus-5",
-            max_tokens: 512,
-            tools: [{
-              name: "intent",
-              description: "The parsed trading intent.",
-              input_schema: {
-                type: "object",
-                properties: {
-                  ticker: { type: "string", description: "US stock ticker, uppercase" },
-                  notionalUsd: { type: "number" },
-                  direction: { type: "string", enum: ["long", "short"] },
-                  horizonDays: { type: "number" },
-                  leverage: { type: "number" },
-                  wantsDividends: { type: "boolean" },
-                  wantsVoting: { type: "boolean" },
-                  usesAsCollateral: { type: "boolean" },
-                  needsOffHoursExit: { type: "boolean" },
-                  found: { type: "array", items: { type: "string" } },
-                },
-                required: ["ticker", "notionalUsd", "direction", "horizonDays", "found"],
-              },
-            }],
-            tool_choice: { type: "tool", name: "intent" },
-            messages: [{
-              role: "user",
-              content:
-                `Parse this into a trading intent. Only report fields the text actually states in "found".\n` +
-                `Known tickers: ${knownTickers.slice(0, 200).join(" ")}\n\n${text}`,
-            }],
-          }),
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ text, tickers: knownTickers.slice(0, 250) }),
+          signal: AbortSignal.timeout(25_000),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const use = json?.content?.find?.((c: { type: string }) => c.type === "tool_use");
-        const a = use?.input;
+        if (!res.ok) throw new Error(res.status === 503 ? "no key configured" : `HTTP ${res.status}`);
+        const out = await res.json();
+        const a = out?.input;
         if (!a || typeof a.ticker !== "string") throw new Error("no structured output");
 
-        const found: string[] = Array.isArray(a.found) ? a.found : [];
-        const all = ["size", "horizon", "direction", "leverage"];
+        const found: string[] = Array.isArray(a.found) ? a.found.map(String) : [];
+
+        /*
+         * A value the model did not find in the text is a guess, and a guess presented as a
+         * parsed number is exactly what this product exists not to do.
+         *
+         * "I want to bet against tesla for a couple of weeks" came back with
+         * notionalUsd 10000, correctly left out of `found`, but 10,000 is nowhere in that
+         * sentence. Fields are taken only when the model listed them as found; everything
+         * else falls to the same defaults the rules parser uses and is labelled assumed.
+         */
+        const has = (...names: string[]) => names.some((n) => found.includes(n));
+        const num = (v: unknown, fallback: number, present: boolean) => {
+          if (!present) return fallback;
+          const n = Number(v);
+          return Number.isFinite(n) && n > 0 ? n : fallback;
+        };
+
+        const direction = has("direction") && a.direction === "short" ? "short" : "long";
+        const all = ["ticker", "size", "horizon", "direction", "leverage"];
+        const normalised = found.map((f) =>
+          f === "notionalUsd" ? "size" : f === "horizonDays" ? "horizon" : f,
+        );
+
         return {
           intent: {
-            ticker: String(a.ticker).toUpperCase(),
-            notionalUsd: Number(a.notionalUsd) || 2_000,
-            direction: a.direction === "short" ? "short" : "long",
-            horizonDays: Number(a.horizonDays) || 30,
+            ticker: String(a.ticker ?? "").toUpperCase(),
+            notionalUsd: num(a.notionalUsd, 2_000, has("size", "notionalUsd")),
+            direction,
+            horizonDays: num(a.horizonDays, 30, has("horizon", "horizonDays")),
             constraints: {
-              leverage: Number(a.leverage) || 1,
-              needsShort: a.direction === "short",
-              wantsDividends: Boolean(a.wantsDividends),
-              wantsVoting: Boolean(a.wantsVoting),
-              usesAsCollateral: Boolean(a.usesAsCollateral),
-              needsOffHoursExit: Boolean(a.needsOffHoursExit),
+              leverage: num(a.leverage, 1, has("leverage")),
+              needsShort: direction === "short",
+              wantsDividends: has("wantsDividends", "dividends") && Boolean(a.wantsDividends),
+              wantsVoting: has("wantsVoting", "voting") && Boolean(a.wantsVoting),
+              usesAsCollateral: has("usesAsCollateral", "collateral") && Boolean(a.usesAsCollateral),
+              needsOffHoursExit: has("needsOffHoursExit", "off hours exit") && Boolean(a.needsOffHoursExit),
             },
           },
-          found,
-          assumed: all.filter((f) => !found.includes(f)),
+          found: normalised,
+          assumed: all.filter((f) => !normalised.includes(f)),
           parser: "model",
         };
       } catch (e) {
         const fallback = await deterministicParser.parse(text, knownTickers);
-        return { ...fallback, note: `Model parser unavailable (${(e as Error).message}), read it directly instead.` };
+        return { ...fallback, note: `Read by rules, not the model (${(e as Error).message}).` };
       }
     },
   };
 }
 
-/** The parser the app uses. Model when a key exists, deterministic otherwise. */
+/**
+ * The parser the app uses.
+ *
+ * Always the model parser, because it falls back to the rules parser by itself when the
+ * endpoint is unconfigured or unreachable. There is no build-time key to branch on any
+ * more, which is the point: the browser never holds one.
+ */
 export function getParser(): IntentParser {
-  const key = (import.meta as { env?: Record<string, string> }).env?.VITE_ANTHROPIC_API_KEY;
-  return key ? createModelParser(key) : deterministicParser;
+  return createModelParser();
 }
