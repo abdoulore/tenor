@@ -197,3 +197,26 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
   .brand h1 { font-size: 28px; }
   .route-total { font-size: 22px; }
 }
+
+/* Funding shown as what it is: a projection with a range, kept visually apart from the
+   fees and execution above it, which are measured now. */
+.funding {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  margin-top: 10px; padding: 9px 12px; border-radius: 7px;
+  background: rgba(201,139,255,0.07); border-left: 2px solid var(--perp);
+  font-family: var(--mono); font-size: 13px;
+}
+.funding.wide { background: rgba(232,178,58,0.09); border-left-color: var(--warn); }
+.funding .fl { color: var(--muted); }
+.funding .fv { color: var(--text); }
+.funding .fv em { color: var(--warn); font-style: normal; margin-left: 8px; }
+
+.route-sum { margin-top: 8px; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.route-sum strong { color: var(--text); }
+
+.note.loud { color: var(--warn); font-size: 13px; line-height: 1.45; margin-top: 10px; }
+
+.verdict.unsettled {
+  background: linear-gradient(180deg, rgba(232,178,58,0.10), transparent);
+  border-color: rgba(232,178,58,0.35);
+}

@@ -22,6 +22,21 @@ const W = 760;
 const H = 320;
 const PAD = { top: 28, right: 24, bottom: 56, left: 56 };
 
+/** Round an axis up to a 1, 2 or 5 times a power of ten, so ticks land on readable values. */
+function niceScale(rawMax: number, targetTicks = 5): { max: number; step: number } {
+  if (!(rawMax > 0)) return { max: 1, step: 0.2 };
+  const rough = rawMax / (targetTicks - 1);
+  const mag = 10 ** Math.floor(Math.log10(rough));
+  const norm = rough / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  return { max: Math.ceil(rawMax / step) * step, step };
+}
+
+function withBook(points: { samples: number; empty: boolean; bp: number | null }[]): string {
+  const n = points.reduce((t, p) => t + (p.bp === null ? 0 : p.samples), 0);
+  return n.toLocaleString();
+}
+
 export function SessionChart({
   outlook,
   current,
@@ -50,13 +65,16 @@ export function SessionChart({
     return <section className="chart"><p className="empty-note">No samples for this ticker yet.</p></section>;
   }
 
-  const max = Math.max(...values) * 1.15;
+  // Sane ticks. The old axis divided the raw maximum into four, which produced labels like
+  // 10 8 5 3 0 that collide, and 3 2 1 1 0 that repeat a value.
+  const { max, step } = niceScale(Math.max(...values));
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const x = (i: number) => PAD.left + (innerW / (SESSIONS.length - 1)) * i;
   const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
 
-  const ticks = 4;
+  const tickValues: number[] = [];
+  for (let v = 0; v <= max + 1e-9; v += step) tickValues.push(v);
   const currentIdx = SESSIONS.indexOf(current);
 
   return (
@@ -68,15 +86,14 @@ export function SessionChart({
       </p>
 
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Execution cost by session">
-        {Array.from({ length: ticks + 1 }, (_, i) => {
-          const v = (max / ticks) * i;
-          return (
-            <g key={i}>
-              <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="grid" />
-              <text x={PAD.left - 10} y={y(v) + 4} className="axis" textAnchor="end">{v.toFixed(0)}</text>
-            </g>
-          );
-        })}
+        {tickValues.map((v) => (
+          <g key={v}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="grid" />
+            <text x={PAD.left - 10} y={y(v) + 4} className="axis" textAnchor="end">
+              {step < 1 ? v.toFixed(1) : v.toFixed(0)}
+            </text>
+          </g>
+        ))}
 
         {currentIdx >= 0 && (
           <g>
@@ -138,9 +155,11 @@ export function SessionChart({
             <i /> {s.label}
           </span>
         ))}
+        {/* Count samples that actually had a book. "413 rToken samples" beside four
+            no-book marks reads as data supporting a line that is not there. */}
         <span className="samples">
-          {series[0].points.reduce((t, p) => t + p.samples, 0).toLocaleString()} rToken samples,{" "}
-          {series[1].points.reduce((t, p) => t + p.samples, 0).toLocaleString()} perp samples
+          {withBook(series[0].points)} rToken samples with a book,{" "}
+          {withBook(series[1].points)} perp
         </span>
       </div>
     </section>

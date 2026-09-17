@@ -322,6 +322,55 @@ group("engine: staleness is visible");
   check("stale route says how old", /600s old/.test(r.reason ?? ""));
 }
 
+group("engine: a stale route is still a tradeable route");
+{
+  // This was a real defect on the deployed build: stale routes were dropped from the
+  // ranking, so the banner said nothing could be traded while the cards below printed
+  // two prices with dollar figures.
+  const q = priceIntent(intent(), {
+    session: "regular",
+    books: { rtoken: makeBook(10, 100), perp: makeBook(2, 100) },
+    funding: settlements(30, 0),
+    stalenessMs: { rtoken: 600_000, perp: 600_000 },
+    now: NOW,
+  });
+  check("stale routes still rank", q.recommended !== null, `${q.recommended}`);
+  check("stale routes get a rank number", q.routes.filter((r) => r.rank !== null).length === 2);
+  check("stale does not trigger the nothing-tradeable warning",
+    !q.warnings.some((w) => /No route can trade/i.test(w)));
+  check("stale is still visible on the route", q.routes.find((r) => r.route === "perp")!.status === "stale");
+
+  // The banner must still fire where it should.
+  const reallyDead = priceIntent(intent({ direction: "short", constraints: { ...DEFAULT_CONSTRAINTS, wantsVoting: true } }), {
+    session: "regular", books: { rtoken: makeBook(2, 100), perp: makeBook(2, 100) }, funding: settlements(30, 0), now: NOW,
+  });
+  check("genuinely ineligible still reports nothing tradeable", reallyDead.recommended === null);
+}
+
+group("engine: session advice is worth acting on");
+{
+  const o: SessionOutlook[] = [
+    { session: "premarket", executionBp: 6.8, emptyShare: 0, samples: 66 },
+    { session: "regular", executionBp: 8.7, emptyShare: 0, samples: 66 },
+    { session: "afterhours", executionBp: 7.3, emptyShare: 0, samples: 66 },
+    { session: "overnight", executionBp: 6.4, emptyShare: 0, samples: 66 },
+  ];
+  check("a saving under 1bp is not advice", betterSession(o, "premarket") === null);
+  check("a saving over 1bp is", betterSession(o, "regular")?.session === "overnight");
+  check("it names the cheapest session, not merely a cheaper one",
+    betterSession(o, "regular")?.executionBp === 6.4);
+  check("the threshold is adjustable", betterSession(o, "premarket", 0.1)?.session === "overnight");
+
+  // Somewhere with no book is not somewhere to send anyone.
+  const withDead: SessionOutlook[] = [
+    { session: "regular", executionBp: 20, emptyShare: 0, samples: 66 },
+    { session: "overnight", executionBp: 1, emptyShare: 1, samples: 66 },
+    { session: "afterhours", executionBp: 15, emptyShare: 0, samples: 66 },
+  ];
+  check("a session whose book is always empty is skipped",
+    betterSession(withDead, "regular")?.session === "afterhours");
+}
+
 group("engine: gate 4, does the horizon decide");
 {
   const tight = priceIntent(intent(), {

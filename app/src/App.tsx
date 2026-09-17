@@ -68,9 +68,19 @@ const STATUS_COPY: Record<string, { title: string; tone: string }> = {
   stale: { title: "Stale data", tone: "warn" },
 };
 
-function RouteCard({ r, notional, best }: { r: RouteResult; notional: number; best: boolean }) {
+function RouteCard({
+  r, notional, best, horizonDays, decisionBp,
+}: {
+  r: RouteResult; notional: number; best: boolean; horizonDays: number;
+  /** How far apart the two live routes are. The yardstick the funding band is judged against. */
+  decisionBp: number | null;
+}) {
   const copy = STATUS_COPY[r.status];
   const priced = r.totalBp !== null;
+  const certain = (r.feeBp ?? 0) + (r.executionBp ?? 0);
+  const bandWidth = r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0;
+  // A band wider than the gap it is meant to resolve cannot resolve it.
+  const wideBand = decisionBp !== null && bandWidth > Math.abs(decisionBp);
   return (
     <div className={`route ${best ? "best" : ""} ${copy?.tone ?? "ok"}`}>
       <div className="route-head">
@@ -81,16 +91,50 @@ function RouteCard({ r, notional, best }: { r: RouteResult; notional: number; be
 
       {priced ? (
         <>
-          <div className="route-total"><Range r={r.totalBp!} notional={notional} /></div>
+          {/*
+            * The headline is what is actually known: fees and execution, both measured now.
+            * Funding is projected and gets its own line with its range, because folding a
+            * 257bp band into one confident number is the one thing here a reader could
+            * fairly call dishonest.
+            */}
+          <div className="route-total">
+            <strong>{fmtBp(certain)}</strong>
+            <span className="sub"> {usd(certain, notional)}</span>
+            <span className="band"> to get in and out</span>
+          </div>
           <div className="breakdown">
             <span>fee {fmtBp(r.feeBp)}</span>
             <span className={`prov ${r.feeProvenance}`}>{r.feeProvenance}</span>
             <span>execution {fmtBp(r.executionBp)}</span>
-            {r.route === "perp" && r.fundingBp && (
-              <span>funding {fmtBp(r.fundingBp.mid)}{Math.abs(r.fundingBp.high - r.fundingBp.low) > 0.005
-                ? ` (${fmtBp(r.fundingBp.low)} to ${fmtBp(r.fundingBp.high)})` : ""}</span>
-            )}
           </div>
+
+          {r.route === "perp" && r.fundingBp && (
+            <div className={`funding ${wideBand ? "wide" : ""}`}>
+              <span className="fl">plus funding over {horizonDays}d</span>
+              <span className="fv">
+                {fmtBp(r.fundingBp.mid)}
+                {bandWidth > 0.005 && (
+                  <em> anywhere from {fmtBp(r.fundingBp.low)} to {fmtBp(r.fundingBp.high)}</em>
+                )}
+              </span>
+            </div>
+          )}
+
+          {r.route === "perp" && r.totalBp && (
+            <div className="route-sum">
+              total <strong>{fmtBp(r.totalBp.mid)}</strong>
+              {bandWidth > 0.005 && <span> ({fmtBp(r.totalBp.low)} to {fmtBp(r.totalBp.high)})</span>}
+            </div>
+          )}
+
+          {wideBand && (
+            <div className="note loud">
+              The cost of this route depends almost entirely on funding, and funding is not
+              predictable at {horizonDays} days. The band above is wider than the difference
+              between the routes, so treat the ranking as unsettled.
+            </div>
+          )}
+
           {r.absorbableUsd !== null && r.absorbableUsd < notional * 3 && (
             <div className="note">Book holds about ${r.absorbableUsd.toLocaleString()} on the thinner side.</div>
           )}
@@ -111,6 +155,13 @@ export default function App() {
   const [quote, setQuote] = useState<Quote | null>(null);
   const [pair, setPair] = useState<Pair | null>(null);
   const [books, setBooks] = useState<{ spot: Book; perp: Book } | null>(null);
+  /*
+   * Staleness is a real condition, not the default state. Books are fetched live on every
+   * request, so a fresh fetch is never stale however long the page has been open. Only a
+   * failed fetch that falls back to the last good books is, and then it says how old they are.
+   */
+  const [fellBackAt, setFellBackAt] = useState<number | null>(null);
+  const lastGood = useRef<{ spot: Book; perp: Book; at: number } | null>(null);
   const [funding, setFunding] = useState<Settlement[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -147,15 +198,30 @@ export default function App() {
       if (!p) throw new Error(`${nextIntent.ticker} does not have both an rToken and a stock perp on Bitget.`);
       setPair(p);
 
-      const [spot, perp, fund] = await Promise.all([
-        fetchBook("SPOT", p.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null }) as Book),
-        fetchBook("USDT-FUTURES", p.perpSymbol).catch(() => ({ asks: [], bids: [], ts: null }) as Book),
-        fetchFunding(p.perpSymbol).catch(() => [] as Settlement[]),
+      const [spotRes, perpRes, fundRes] = await Promise.allSettled([
+        fetchBook("SPOT", p.spotSymbol),
+        fetchBook("USDT-FUTURES", p.perpSymbol),
+        fetchFunding(p.perpSymbol),
       ]);
       if (id !== reqId.current) return;
 
+      // An empty book is a live answer and must not be confused with a failed call. Only a
+      // rejection falls back, and only then is anything stale.
+      const prev = lastGood.current;
+      const failed = spotRes.status === "rejected" || perpRes.status === "rejected";
+      const spot = spotRes.status === "fulfilled" ? spotRes.value : prev?.spot;
+      const perp = perpRes.status === "fulfilled" ? perpRes.value : prev?.perp;
+      if (!spot || !perp) throw new Error("Bitget did not answer and there is no earlier price to fall back on.");
+
+      if (!failed) {
+        lastGood.current = { spot, perp, at: Date.now() };
+        setFellBackAt(null);
+      } else {
+        setFellBackAt(prev?.at ?? null);
+      }
+
       setBooks({ spot, perp });
-      setFunding(fund);
+      setFunding(fundRes.status === "fulfilled" ? fundRes.value : []);
       setFetchedAt(Date.now());
       setStatus("idle");
     } catch (e) {
@@ -171,7 +237,7 @@ export default function App() {
   useEffect(() => {
     if (!intent || !books || !pair) return;
     const outlook = outlookFor(intent.ticker, nearestSize(intent.notionalUsd));
-    const age = fetchedAt ? now - fetchedAt : null;
+    const age = fellBackAt !== null ? now - fellBackAt : null;
     const q = priceIntent(intent, {
       session,
       books: { rtoken: books.spot, perp: books.perp },
@@ -182,7 +248,7 @@ export default function App() {
       now,
     });
     setQuote(q);
-  }, [intent, books, pair, funding, session, fetchedAt, now]);
+  }, [intent, books, pair, funding, session, fellBackAt, now]);
 
   useEffect(() => { if (tickers.length) void run(); /* first paint once tickers land */ }, [tickers.length]);
 
@@ -199,7 +265,8 @@ export default function App() {
         <div className="live">
           <span className={`dot ${session}`} /> {session}
           <span className="sep" />
-          fee gap {feeGapBp(DEFAULT_FEES).toFixed(2)}bp toward the rToken
+          fee gap {Math.abs(feeGapBp(DEFAULT_FEES)).toFixed(2)}bp toward the{" "}
+          {feeGapBp(DEFAULT_FEES) < 0 ? "rToken" : "perp"}
         </div>
       </header>
 
@@ -251,7 +318,14 @@ export default function App() {
             <section className="routes">
               <Verdict quote={quote} notional={intent.notionalUsd} />
               {quote.routes.map((r) => (
-                <RouteCard key={r.route} r={r} notional={intent.notionalUsd} best={r.rank === 1} />
+                <RouteCard
+                  key={r.route}
+                  r={r}
+                  notional={intent.notionalUsd}
+                  best={r.rank === 1}
+                  horizonDays={intent.horizonDays}
+                  decisionBp={decisionGap(quote)}
+                />
               ))}
               {(["rtoken", "perp"] as const).map((route) => {
                 const b = outlook ? betterSession(outlook[route], session) : null;
@@ -288,7 +362,9 @@ export default function App() {
             {quote.warnings.map((w) => <div key={w} className="warn-line">{w}</div>)}
             {fetchedAt && (
               <div className="warn-line">
-                Books fetched {Math.round((now - fetchedAt) / 1000)}s ago.
+                {fellBackAt !== null
+                  ? `Bitget did not answer, so these are the last good books, ${Math.round((now - fellBackAt) / 1000)}s old.`
+                  : `Books fetched live ${Math.round((now - fetchedAt) / 1000)}s ago.`}
                 {" "}Session medians from {coverage.records.toLocaleString()} samples over{" "}
                 {coverage.cycles} cycles, {String(coverage.from).slice(0, 16)} to {String(coverage.to).slice(0, 16)}.
                 {" "}That is about a day of data, not a quarter.
@@ -328,6 +404,23 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
     );
   }
   const diff = second.totalBp!.mid - best.totalBp!.mid;
+  // If either route's funding band is wider than the gap between them, the ranking is a
+  // coin toss dressed up as an answer. Say so in the headline rather than the footnotes.
+  const widestBand = Math.max(
+    ...quote.routes.map((r) => (r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0)),
+  );
+  if (widestBand > Math.abs(diff)) {
+    return (
+      <div className="verdict unsettled">
+        <strong>Too close to call, and funding is why.</strong>
+        <span>
+          {best.label} leads by {diff.toFixed(2)}bp, but funding over{" "}
+          {quote.intent.horizonDays} days could move the answer by {widestBand.toFixed(0)}bp.
+          Getting in and out is the only part anyone can price today.
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="verdict">
       <strong>{best.label} by {diff.toFixed(2)}bp.</strong>
@@ -337,6 +430,14 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
       </span>
     </div>
   );
+}
+
+/** How much separates the best two ranked routes, which is what the answer turns on. */
+function decisionGap(quote: Quote): number | null {
+  const a = quote.routes.find((r) => r.rank === 1);
+  const b = quote.routes.find((r) => r.rank === 2);
+  if (!a?.totalBp || !b?.totalBp) return null;
+  return b.totalBp.mid - a.totalBp.mid;
 }
 
 /** The sampler only walked $2,000 and $10,000, so medians snap to a measured size. */

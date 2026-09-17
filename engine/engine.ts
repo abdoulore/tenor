@@ -55,7 +55,13 @@ export function priceIntent(intent: Intent, inputs: PricingInputs): Quote {
 
   // Rank only routes that produced a total. Ties break toward the lower ceiling, because a
   // route whose worst case is better is the safer recommendation at equal expected cost.
-  const priced = results.filter((r) => r.status === "ok" && r.totalBp !== null);
+  /*
+   * A stale route is still a tradeable route. Excluding it from the ranking made
+   * `recommended` null while the cards below still showed real prices, so the page claimed
+   * nothing could be traded and then priced two things. Staleness is a caveat on a number,
+   * not a reason to withhold the answer.
+   */
+  const priced = results.filter((r) => (r.status === "ok" || r.status === "stale") && r.totalBp !== null);
   priced.sort((a, b) => a.totalBp!.mid - b.totalBp!.mid || a.totalBp!.high - b.totalBp!.high);
   priced.forEach((r, i) => { r.rank = i + 1; });
 
@@ -259,18 +265,27 @@ export function decidesOnHorizon(results: RouteResult[], fees: FeeSchedule): boo
 export function betterSession(
   outlook: SessionOutlook[] | undefined,
   current: Session,
+  /**
+   * Below this, a session difference is not advice. Saving 0.39bp on $2,000 is eight cents,
+   * and presenting that as a recommendation spends the user's attention on nothing.
+   */
+  minSavingBp = 1,
 ): { session: Session; executionBp: number; savingBp: number } | null {
   if (!outlook?.length) return null;
   const here = outlook.find((o) => o.session === current);
   if (!here || here.executionBp === null) return null;
+
+  // The cheapest session available, not merely a cheaper one.
   let best: SessionOutlook | null = null;
   for (const o of outlook) {
     if (o.session === current || o.executionBp === null) continue;
+    if (o.emptyShare === 1) continue; // a session with no book is not somewhere to go
     if (!best || o.executionBp < best.executionBp!) best = o;
   }
   if (!best || best.executionBp === null) return null;
+
   const saving = here.executionBp - best.executionBp;
-  if (saving <= 0) return null;
+  if (saving < minSavingBp) return null;
   return { session: best.session, executionBp: best.executionBp, savingBp: round(saving, 4) };
 }
 
