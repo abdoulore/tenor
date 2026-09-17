@@ -21,3 +21,5 @@ engine/predictions/*.pid
 .backup/
 ops/*.log
 ops/*.pid
+
+.vercel
