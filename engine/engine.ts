@@ -66,7 +66,7 @@ export function priceIntent(intent: Intent, inputs: PricingInputs): Quote {
   priced.forEach((r, i) => { r.rank = i + 1; });
 
   const recommended = priced.length ? priced[0].route : null;
-  if (!recommended) warnings.push("No route can trade this intent right now.");
+  if (!recommended) warnings.push("None of the three ways to hold this will work for what you asked.");
 
   const horizonDecides = decidesOnHorizon(results, fees);
 
@@ -75,8 +75,8 @@ export function priceIntent(intent: Intent, inputs: PricingInputs): Quote {
   const unverified = unverifiedLegs(fees);
   if (unverified.length) {
     warnings.push(
-      `Fee rate not confirmed against this account: ${unverified.join(", ")}. ` +
-      `Priced at the published rate, which may be too expensive.`,
+      `We have not confirmed the real trading fee for ${unverified.join(" and ")} on this account, ` +
+      `so we used Bitget's published rate. The true cost may be lower.`,
     );
   }
   for (const c of feeCaveats(fees)) if (!warnings.includes(c)) warnings.push(c);
@@ -139,7 +139,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `${ROUTE_LABELS[route]} had no order book in any ${inputs.session} sample`,
+      reason: `Every time we checked at this hour, nobody was quoting a price for the ${ROUTE_LABELS[route].toLowerCase()}.`,
       absorbableUsd: 0,
     };
   }
@@ -161,8 +161,9 @@ function priceRoute(
       feeProvenance: feeLegFor(route, fees).provenance,
       feeSource: feeLegFor(route, fees).source,
       reason:
-        "Stock+ has no reachable order book, so execution cost is unknown and it is not ranked. " +
-        `Round trip fee alone is ${round(roundTripFeeBp(route, fees), 2)}bp from the published schedule.`,
+        "Bitget does not publish live prices for Stock+, so we cannot tell you what it would really cost " +
+        "and we will not guess. Its fee alone is " +
+        `${(round(roundTripFeeBp(route, fees), 2) / 100).toFixed(3)}% to buy and sell.`,
     };
   }
 
@@ -173,7 +174,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `${ROUTE_LABELS[route]} has no order book right now, so it cannot be traded at any size`,
+      reason: `Nobody is quoting a price for the ${ROUTE_LABELS[route].toLowerCase()} right now, so you could not buy or sell it at any amount.`,
       absorbableUsd: 0,
     };
   }
@@ -181,7 +182,12 @@ function priceRoute(
   // Gate 2: can it absorb the requested size.
   const exec = book && !isEmpty(book) ? execution(book, intent.notionalUsd, intent.direction) : null;
   if (!exec && !hasOverride) {
-    return { ...base, status: "no_book", reason: `${ROUTE_LABELS[route]} has an unusable book`, absorbableUsd: 0 };
+    return {
+      ...base,
+      status: "no_book",
+      reason: `The prices quoted for the ${ROUTE_LABELS[route].toLowerCase()} do not make sense, so we will not price it.`,
+      absorbableUsd: 0,
+    };
   }
   if (exec && exec.roundTripBp === null && !hasOverride) {
     const canTake = absorbable(book!);
@@ -191,8 +197,8 @@ function priceRoute(
       execution: exec,
       absorbableUsd: canTake,
       reason:
-        `${ROUTE_LABELS[route]} cannot absorb $${intent.notionalUsd.toLocaleString()}. ` +
-        `The book holds about $${canTake.toLocaleString()} on the thinner side.`,
+        `Only about $${canTake.toLocaleString()} of the ${ROUTE_LABELS[route].toLowerCase()} is on offer, ` +
+        `and you asked for $${intent.notionalUsd.toLocaleString()}. You would move the price against yourself.`,
     };
   }
 
@@ -208,7 +214,7 @@ function priceRoute(
     });
     fundingBp = proj.bp;
     if (proj.missing) {
-      const w = "No funding history for this perp, so funding is projected as zero and the total is a floor.";
+      const w = "This contract has no holding-fee history yet, so we show the holding cost as zero. The real figure can only be higher.";
       if (!warnings.includes(w)) warnings.push(w);
     }
   } else {
@@ -227,7 +233,7 @@ function priceRoute(
     ...base,
     status: stale ? "stale" : "ok",
     reason: stale
-      ? `Priced from a snapshot ${Math.round(base.stalenessMs! / 1000)}s old, not a live book`
+      ? `Bitget did not answer just now, so this uses prices from ${Math.round(base.stalenessMs! / 1000)} seconds ago.`
       : null,
     execution: exec,
     absorbableUsd: book && !isEmpty(book) ? absorbable(book) : null,

@@ -8,10 +8,24 @@
 
 import type { Constraints, Direction, RouteId, Session } from "./types.ts";
 
+/**
+ * Names a person can read.
+ *
+ * "rToken" and "USDT perp" are Bitget's words, not the user's. Someone deciding how to hold
+ * NVDA should not have to learn two pieces of exchange jargon before the page makes sense,
+ * so the plain name leads and the exchange symbol is shown beside it in the interface.
+ */
 export const ROUTE_LABELS: Record<RouteId, string> = {
-  rtoken: "rToken (spot)",
-  perp: "USDT perp",
-  stockplus: "Stock+ (modeled)",
+  rtoken: "Tokenized stock",
+  perp: "Futures contract",
+  stockplus: "Stock+",
+};
+
+/** One line saying what each thing actually is, shown under the name. */
+export const ROUTE_BLURBS: Record<RouteId, string> = {
+  rtoken: "You own a token that tracks the share price. No leverage, no ongoing cost.",
+  perp: "A contract that tracks the price. Can be leveraged, can bet on a fall, but you pay or receive a holding fee every 8 hours.",
+  stockplus: "Bitget's own stock product. Trades during US market hours only.",
 };
 
 export interface RouteCapability {
@@ -77,7 +91,11 @@ export function checkEligibility(
 
   if (direction === "short" || c.needsShort) {
     if (!cap.canShort) {
-      return { eligible: false, reason: `${label} cannot be sold short, it is a spot holding`, unverified };
+      return {
+        eligible: false,
+        reason: `You cannot bet on a price falling with ${label.toLowerCase()}, because you have to own it first. Only a futures contract can do that.`,
+        unverified,
+      };
     }
   }
 
@@ -86,31 +104,43 @@ export function checkEligibility(
       eligible: false,
       reason:
         cap.maxLeverage === 1
-          ? `${label} is unlevered, so it cannot express ${c.leverage}x`
-          : `${label} tops out at ${cap.maxLeverage}x, below the ${c.leverage}x requested`,
+          ? `${label} is bought outright with your own money, so it cannot give you ${c.leverage} times the exposure.`
+          : `${label} goes up to ${cap.maxLeverage} times exposure, and you asked for ${c.leverage} times.`,
       unverified,
     };
   }
 
   if (c.wantsVoting && !cap.carriesVoting) {
-    return { eligible: false, reason: `${label} carries no voting rights`, unverified };
+    return {
+      eligible: false,
+      reason: `${label} does not make you a shareholder, so it comes with no vote at company meetings.`,
+      unverified,
+    };
   }
 
   if (c.wantsDividends) {
     if (cap.paysDividends === false) {
-      return { eligible: false, reason: `${label} pays no dividend, it tracks price only`, unverified };
+      return {
+        eligible: false,
+        reason: `A ${label.toLowerCase()} follows the share price only, so it never pays you a dividend.`,
+        unverified,
+      };
     }
     if (cap.paysDividends === null) {
-      unverified.push(`dividend treatment for ${label} is not confirmed`);
+      unverified.push(`We have not confirmed whether ${label.toLowerCase()} pays dividends on Bitget.`);
     }
   }
 
   if (c.usesAsCollateral) {
     if (cap.usableAsCollateral === false) {
-      return { eligible: false, reason: `${label} cannot be posted as collateral`, unverified };
+      return {
+        eligible: false,
+        reason: `${label} cannot be used as collateral to borrow against.`,
+        unverified,
+      };
     }
     if (cap.usableAsCollateral === null) {
-      unverified.push(`collateral treatment for ${label} is not confirmed`);
+      unverified.push(`We have not confirmed whether ${label.toLowerCase()} can be used as collateral on Bitget.`);
     }
   }
 
@@ -119,7 +149,7 @@ export function checkEligibility(
     if (!allowed.includes("overnight")) {
       return {
         eligible: false,
-        reason: `${label} only trades during ${allowed.join(", ")}, so it cannot be exited off hours`,
+        reason: `${label} only trades while US markets are open, so you could not sell it outside those hours.`,
         unverified,
       };
     }
@@ -128,7 +158,7 @@ export function checkEligibility(
   if (cap.tradableSessions !== "all" && !(cap.tradableSessions as Session[]).includes(session)) {
     return {
       eligible: false,
-      reason: `${label} is closed during ${session}, it trades ${(cap.tradableSessions as Session[]).join(", ")} only`,
+      reason: `${label} is closed right now. It only trades while US markets are open.`,
       unverified,
     };
   }

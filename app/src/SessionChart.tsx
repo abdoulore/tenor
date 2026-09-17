@@ -12,15 +12,15 @@ import type { Session, SessionOutlook } from "../../engine/types.ts";
 
 const SESSIONS: Session[] = ["premarket", "regular", "afterhours", "overnight"];
 const LABELS: Record<string, string> = {
-  premarket: "Pre-market",
-  regular: "US hours",
-  afterhours: "After-hours",
+  premarket: "Before the open",
+  regular: "US market hours",
+  afterhours: "After the close",
   overnight: "Overnight",
 };
 
 const W = 760;
 const H = 320;
-const PAD = { top: 28, right: 24, bottom: 56, left: 56 };
+const PAD = { top: 28, right: 24, bottom: 56, left: 78 };
 
 /** Round an axis up to a 1, 2 or 5 times a power of ten, so ticks land on readable values. */
 function niceScale(rawMax: number, targetTicks = 5): { max: number; step: number } {
@@ -46,9 +46,14 @@ export function SessionChart({
   current: Session;
   size: number;
 }) {
+  // Dollars on the amount asked about, because a basis point means nothing to most people.
+  const money = (bp: number) => {
+    const d = (bp / 10_000) * size;
+    return `$${d.toLocaleString(undefined, { minimumFractionDigits: d < 100 ? 2 : 0, maximumFractionDigits: d < 100 ? 2 : 0 })}`;
+  };
   const series = (["rtoken", "perp"] as const).map((route) => ({
     route,
-    label: route === "rtoken" ? "rToken" : "Perp",
+    label: route === "rtoken" ? "Tokenized stock" : "Futures contract",
     points: SESSIONS.map((s) => {
       const e = outlook[route].find((o) => o.session === s);
       return {
@@ -62,7 +67,13 @@ export function SessionChart({
 
   const values = series.flatMap((s) => s.points.map((p) => p.bp).filter((v): v is number => v !== null));
   if (!values.length) {
-    return <section className="chart"><p className="empty-note">No samples for this ticker yet.</p></section>;
+    return (
+      <section className="chart">
+        <p className="empty-note">
+          We have not been watching this one long enough to say anything about the best hour to trade it.
+        </p>
+      </section>
+    );
   }
 
   // Sane ticks. The old axis divided the raw maximum into four, which produced labels like
@@ -79,18 +90,19 @@ export function SessionChart({
 
   return (
     <section className="chart">
-      <h2>What it costs to get in and out, by hour</h2>
+      <h2>The same trade costs different amounts at different hours</h2>
       <p className="sub">
-        Round trip execution on ${size.toLocaleString()}, median of every sample in each session.
-        Fees and funding are not in this chart.
+        What you lose to the gap between buying and selling price, on ${size.toLocaleString()},
+        typical across every check we have made. Bitget's fee and any holding fee are not in
+        this chart, only the cost of getting in and back out.
       </p>
 
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Execution cost by session">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="What it costs to buy and sell at each time of day">
         {tickValues.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="grid" />
             <text x={PAD.left - 10} y={y(v) + 4} className="axis" textAnchor="end">
-              {step < 1 ? v.toFixed(1) : v.toFixed(0)}
+              {money(v)}
             </text>
           </g>
         ))}
@@ -126,14 +138,14 @@ export function SessionChart({
                   <g key={i}>
                     <line x1={x(i)} x2={x(i)} y1={PAD.top + innerH - 6} y2={PAD.top + innerH + 6} className="gapmark" />
                     <text x={x(i)} y={PAD.top + innerH - 14} className="gaptext" textAnchor="middle">
-                      {p.empty ? "no book" : "no data"}
+                      {p.empty ? "cannot trade" : "no data"}
                     </text>
                   </g>
                 ) : (
                   <g key={i}>
                     <circle cx={x(i)} cy={y(p.bp)} r={6} className="dot" />
                     <text x={x(i)} y={y(p.bp) - 14} className="value" textAnchor="middle">
-                      {p.bp.toFixed(1)}
+                      {money(p.bp)}
                     </text>
                   </g>
                 ),
@@ -152,14 +164,14 @@ export function SessionChart({
       <div className="legend">
         {series.map((s) => (
           <span key={s.route} className={`key ${s.route}`}>
-            <i /> {s.label}
+            <i /> {s.route === "rtoken" ? "Tokenized stock" : "Futures contract"}
           </span>
         ))}
         {/* Count samples that actually had a book. "413 rToken samples" beside four
             no-book marks reads as data supporting a line that is not there. */}
         <span className="samples">
-          {withBook(series[0].points)} rToken samples with a book,{" "}
-          {withBook(series[1].points)} perp
+          Based on {withBook(series[0].points)} price checks for the tokenized stock and{" "}
+          {withBook(series[1].points)} for the futures
         </span>
       </div>
     </section>

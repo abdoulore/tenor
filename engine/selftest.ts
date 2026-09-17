@@ -198,8 +198,9 @@ group("eligibility");
   const c = { ...DEFAULT_CONSTRAINTS };
   check("spot cannot short", checkEligibility("rtoken", "short", c, "regular").eligible === false);
   check("perp can short", checkEligibility("perp", "short", c, "regular").eligible === true);
-  check("short rejection explains itself",
-    /short/i.test(checkEligibility("rtoken", "short", c, "regular").reason ?? ""));
+  check("short rejection explains itself in plain words",
+    /bet on a price falling/i.test(checkEligibility("rtoken", "short", c, "regular").reason ?? ""),
+    checkEligibility("rtoken", "short", c, "regular").reason ?? "");
 
   const lev = { ...c, leverage: 3 };
   check("leverage rules out spot", checkEligibility("rtoken", "long", lev, "regular").eligible === false);
@@ -240,7 +241,8 @@ group("engine: gates");
   check("Stock+ shows the fee it does know", sp.feeBp !== null);
   check("Stock+ admits execution is unknown", sp.executionBp === null && sp.totalBp === null);
   check("Stock+ is kept out of the ranking", sp.rank === null);
-  check("Stock+ says why it is not ranked", /not ranked/i.test(sp.reason ?? ""));
+  check("Stock+ says why it cannot be priced",
+    /does not publish live prices/i.test(sp.reason ?? ""), sp.reason ?? "");
   // Anyone reading a number should see where the fee came from without asking.
   const rt = q.routes.find((r) => r.route === "rtoken")!;
   const pp = q.routes.find((r) => r.route === "perp")!;
@@ -272,7 +274,8 @@ group("engine: empty book is a headline state");
   const r = q.routes.find((x) => x.route === "rtoken")!;
   check("empty book reports no_book", r.status === "no_book", r.status);
   check("empty book is not priced", r.totalBp === null);
-  check("empty book says untradeable, not expensive", /no order book/i.test(r.reason ?? ""));
+  check("empty book says untradeable, not expensive",
+    /nobody is quoting a price/i.test(r.reason ?? ""), r.reason ?? "");
   check("empty book reports zero absorbable", r.absorbableUsd === 0);
   check("the other route still wins", q.recommended === "perp");
   check("Stock+ closed overnight is ineligible",
@@ -291,7 +294,7 @@ group("engine: cannot fill at size");
   check("oversized order reports cannot_fill", r.status === "cannot_fill", r.status);
   check("cannot_fill is not priced", r.totalBp === null);
   check("cannot_fill names what the book holds", (r.absorbableUsd ?? 0) > 0);
-  check("cannot_fill explains in dollars", /book holds about \$/.test(r.reason ?? ""));
+  check("cannot_fill explains in dollars", /Only about \$/.test(r.reason ?? ""), r.reason ?? "");
 }
 
 group("engine: every route ineligible");
@@ -304,7 +307,7 @@ group("engine: every route ineligible");
   });
   check("nothing is recommended", q.recommended === null);
   check("every route carries a reason", q.routes.every((r) => r.reason !== null));
-  check("the dead end is stated", q.warnings.some((w) => /No route can trade/i.test(w)));
+  check("the dead end is stated", q.warnings.some((w) => /None of the three ways/i.test(w)));
 }
 
 group("engine: staleness is visible");
@@ -319,7 +322,7 @@ group("engine: staleness is visible");
   const r = q.routes.find((x) => x.route === "rtoken")!;
   check("stale snapshot is marked", r.status === "stale", r.status);
   check("stale route still shows its numbers", r.totalBp !== null);
-  check("stale route says how old", /600s old/.test(r.reason ?? ""));
+  check("stale route says how old", /600 seconds ago/.test(r.reason ?? ""), r.reason ?? "");
 }
 
 group("engine: a stale route is still a tradeable route");
@@ -345,6 +348,14 @@ group("engine: a stale route is still a tradeable route");
     session: "regular", books: { rtoken: makeBook(2, 100), perp: makeBook(2, 100) }, funding: settlements(30, 0), now: NOW,
   });
   check("genuinely ineligible still reports nothing tradeable", reallyDead.recommended === null);
+  check("the copy a user reads never says perp, rToken or basis point", (() => {
+    const text = [
+      ...q.routes.map((r) => r.reason ?? ""),
+      ...q.warnings,
+      ...q.routes.map((r) => r.label),
+    ].join(" ");
+    return !/perp|rToken|basis point|bp|order book|notional/i.test(text);
+  })());
 }
 
 group("engine: session advice is worth acting on");
@@ -437,7 +448,8 @@ group("engine: counterfactual sessions use measured execution");
   });
   const d = dead.routes.find((r) => r.route === "rtoken")!;
   check("a session with no book ever is no_book", d.status === "no_book", d.status);
-  check("that no_book names the session", /overnight/.test(d.reason ?? ""), d.reason ?? "");
+  check("that no_book says it was measured, not guessed",
+    /Every time we checked at this hour/.test(d.reason ?? ""), d.reason ?? "");
   check("the live route still prices", dead.recommended === "perp");
 
   // An override must still answer for a route whose book is empty right now.

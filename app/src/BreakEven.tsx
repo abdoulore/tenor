@@ -15,7 +15,7 @@ import type { Quote } from "../../engine/types.ts";
 
 const W = 760;
 const H = 300;
-const PAD = { top: 24, right: 24, bottom: 48, left: 60 };
+const PAD = { top: 24, right: 24, bottom: 48, left: 80 };
 const MAX_DAYS = 120;
 
 export function BreakEven({
@@ -61,8 +61,21 @@ export function BreakEven({
   }, [rtoken, perp, funding, intervalHours, quote.intent.direction]);
 
   if (!curve || !rtoken || !perp) {
-    return <section className="chart"><p className="empty-note">Both routes need a live price to draw this.</p></section>;
+    return (
+      <section className="chart">
+        <p className="empty-note">We need a live price for both options to draw this.</p>
+      </section>
+    );
   }
+
+  // Dollars, on the amount the user actually asked about.
+  const money = (bp: number) => {
+    const d = (bp / 10_000) * quote.intent.notionalUsd;
+    const abs = Math.abs(d);
+    return `${d < 0 ? "-" : ""}$${abs.toLocaleString(undefined, {
+      minimumFractionDigits: abs < 100 ? 2 : 0, maximumFractionDigits: abs < 100 ? 2 : 0,
+    })}`;
+  };
 
   const all = [curve.rtFixed, ...curve.perpAt.map((p) => p.high), ...curve.perpAt.map((p) => p.low)];
   const max = Math.max(...all) * 1.1;
@@ -79,19 +92,20 @@ export function BreakEven({
 
   return (
     <section className="chart">
-      <h2>Total cost against holding time</h2>
+      <h2>What it costs you the longer you hold</h2>
       <p className="sub">
-        The rToken pays its cost once, so its line is flat. The perp accrues funding, so its line
-        slopes. The shaded band is the funding range, not a rounding error.
+        The tokenized stock charges you once, when you buy and sell, so its line is flat.
+        The futures contract keeps charging a holding fee, so its line climbs. The shaded
+        area is how wrong that holding fee could turn out to be.
       </p>
 
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Total cost against holding time">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="What it costs you the longer you hold">
         {Array.from({ length: 5 }, (_, i) => {
           const v = min + ((max - min) / 4) * i;
           return (
             <g key={i}>
               <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="grid" />
-              <text x={PAD.left - 10} y={y(v) + 4} className="axis" textAnchor="end">{v.toFixed(0)}</text>
+              <text x={PAD.left - 10} y={y(v) + 4} className="axis" textAnchor="end">{money(v)}</text>
             </g>
           );
         })}
@@ -104,7 +118,7 @@ export function BreakEven({
           <g>
             <line x1={x(curve.cross)} x2={x(curve.cross)} y1={PAD.top} y2={PAD.top + innerH} className="crossline" />
             <text x={x(curve.cross)} y={PAD.top - 8} className="crosslabel" textAnchor="middle">
-              crossover {curve.cross.toFixed(1)}d
+              they cross at {curve.cross.toFixed(0)} days
             </text>
           </g>
         )}
@@ -114,7 +128,7 @@ export function BreakEven({
           y1={PAD.top} y2={PAD.top + innerH} className="nowline"
         />
         <text x={x(quote.intent.horizonDays)} y={H - 26} className="nowlabel" textAnchor="middle">
-          your {quote.intent.horizonDays}d
+          you said {quote.intent.horizonDays} days
         </text>
 
         {[0, 30, 60, 90, 120].map((d) => (
@@ -123,15 +137,17 @@ export function BreakEven({
       </svg>
 
       <div className="legend">
-        <span className="key rtoken"><i /> rToken, flat</span>
-        <span className="key perp"><i /> Perp, with funding</span>
+        <span className="key rtoken"><i /> Tokenized stock</span>
+        <span className="key perp"><i /> Futures contract</span>
       </div>
 
       <p className="sub">
         {curve.cross === null
-          ? "These lines do not cross inside 120 days, so the holding period does not change the answer."
-          : `Below ${curve.cross.toFixed(1)} days the perp is cheaper. Above it the rToken is. ` +
-            `Your ${quote.intent.horizonDays} day horizon sits ${quote.intent.horizonDays < curve.cross ? "below" : "above"} that line.`}
+          ? "These never cross within four months, so how long you hold does not change which one to use."
+          : `Hold for less than ${curve.cross.toFixed(0)} days and the futures contract is cheaper. ` +
+            `Hold longer and the tokenized stock wins, because the holding fee keeps adding up. ` +
+            `You said ${quote.intent.horizonDays} days, which is on the ` +
+            `${quote.intent.horizonDays < curve.cross ? "futures" : "tokenized stock"} side of that line.`}
       </p>
     </section>
   );

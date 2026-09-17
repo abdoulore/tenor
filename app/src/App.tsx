@@ -12,7 +12,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { priceIntent, betterSession } from "../../engine/engine.ts";
 import { fetchBook, fetchFunding, listTickers, resolvePair, type Pair } from "../../engine/bitget.ts";
 import { sessionLabel } from "../../engine/book.ts";
-import { DEFAULT_FEES, feeGapBp, roundTripFeeBp } from "../../engine/fees.ts";
+import { DEFAULT_FEES, roundTripFeeBp } from "../../engine/fees.ts";
+import { ROUTE_BLURBS } from "../../engine/eligibility.ts";
 import { crossoverDays } from "../../engine/funding.ts";
 import type { Book, Intent, Quote, RouteResult, Session, SessionOutlook } from "../../engine/types.ts";
 import type { Settlement } from "../../engine/funding.ts";
@@ -23,6 +24,15 @@ import { BreakEven } from "./BreakEven.tsx";
 
 const SESSIONS: Session[] = ["premarket", "regular", "afterhours", "overnight"];
 const SIZES = [2_000, 10_000];
+
+/** Session names as a person would say them, not as an exchange would. */
+const SESSION_WORDS: Record<string, string> = {
+  regular: "US markets are open",
+  premarket: "Before the US open",
+  afterhours: "After the US close",
+  overnight: "Overnight in the US",
+  weekend: "Weekend, US markets shut",
+};
 
 type OutlookFile = typeof outlookData;
 
@@ -44,10 +54,28 @@ function outlookFor(ticker: string, size: number): Record<"rtoken" | "perp" | "s
   return { rtoken: build("rtoken"), perp: build("perp"), stockplus: [] };
 }
 
+/*
+ * Money leads, precision follows.
+ *
+ * A basis point is a hundredth of a percent, and nobody outside a trading desk thinks in
+ * them. Every figure on this page is shown as dollars on the amount the user actually asked
+ * about, with the percentage kept beside it in small type for anyone who wants it.
+ */
+const usd = (bp: number, notional: number) => {
+  const d = (bp / 10_000) * notional;
+  const abs = Math.abs(d);
+  const digits = abs >= 100 ? 0 : 2;
+  return `${d < 0 ? "-" : ""}$${abs.toLocaleString(undefined, {
+    minimumFractionDigits: digits, maximumFractionDigits: digits,
+  })}`;
+};
+
+/** The same number as a percentage of the position, for the people who prefer it. */
+const pctOf = (bp: number | null | undefined) =>
+  bp === null || bp === undefined ? "n/a" : `${(bp / 100).toFixed(3)}%`;
+
 const fmtBp = (x: number | null | undefined, dp = 2) =>
   x === null || x === undefined ? "n/a" : `${x.toFixed(dp)}bp`;
-
-const usd = (bp: number, notional: number) => `$${((bp / 10_000) * notional).toFixed(2)}`;
 
 function Range({ r, notional }: { r: { low: number; mid: number; high: number }; notional: number }) {
   const tight = Math.abs(r.high - r.low) < 0.005;
@@ -61,60 +89,67 @@ function Range({ r, notional }: { r: { low: number; mid: number; high: number };
 }
 
 const STATUS_COPY: Record<string, { title: string; tone: string }> = {
-  no_book: { title: "No order book", tone: "dead" },
-  cannot_fill: { title: "Too big for the book", tone: "warn" },
-  ineligible: { title: "Cannot express this", tone: "dead" },
-  modeled: { title: "Modeled, not ranked", tone: "muted" },
-  stale: { title: "Stale data", tone: "warn" },
+  no_book: { title: "Nothing on offer", tone: "dead" },
+  cannot_fill: { title: "Not enough on offer", tone: "warn" },
+  ineligible: { title: "Will not do what you asked", tone: "dead" },
+  modeled: { title: "Cannot be priced", tone: "muted" },
+  stale: { title: "Prices a moment old", tone: "warn" },
 };
 
 function RouteCard({
-  r, notional, best, horizonDays, decisionBp,
+  r, notional, best, horizonDays, decisionBp, symbol,
 }: {
   r: RouteResult; notional: number; best: boolean; horizonDays: number;
-  /** How far apart the two live routes are. The yardstick the funding band is judged against. */
-  decisionBp: number | null;
+  decisionBp: number | null; symbol?: string;
 }) {
   const copy = STATUS_COPY[r.status];
   const priced = r.totalBp !== null;
   const certain = (r.feeBp ?? 0) + (r.executionBp ?? 0);
   const bandWidth = r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0;
-  // A band wider than the gap it is meant to resolve cannot resolve it.
   const wideBand = decisionBp !== null && bandWidth > Math.abs(decisionBp);
+
   return (
     <div className={`route ${best ? "best" : ""} ${copy?.tone ?? "ok"}`}>
       <div className="route-head">
         <span className="route-name">{r.label}</span>
+        {symbol && <span className="symbol">{symbol}</span>}
         {best && <span className="badge">cheapest</span>}
         {copy && <span className={`badge ${copy.tone}`}>{copy.title}</span>}
       </div>
+      <div className="blurb">{ROUTE_BLURBS[r.route]}</div>
 
       {priced ? (
         <>
           {/*
-            * The headline is what is actually known: fees and execution, both measured now.
-            * Funding is projected and gets its own line with its range, because folding a
-            * 257bp band into one confident number is the one thing here a reader could
-            * fairly call dishonest.
+            * The headline is the part we actually measured: the fee plus what the spread
+            * costs you getting in and getting back out. Funding is a forecast and sits
+            * separately, because folding a forecast into one confident number is the one
+            * thing here a reader could fairly call dishonest.
             */}
           <div className="route-total">
-            <strong>{fmtBp(certain)}</strong>
-            <span className="sub"> {usd(certain, notional)}</span>
-            <span className="band"> to get in and out</span>
+            <strong>{usd(certain, notional)}</strong>
+            <span className="band"> to buy and sell again</span>
+            <span className="sub"> {pctOf(certain)} of your ${notional.toLocaleString()}</span>
           </div>
           <div className="breakdown">
-            <span>fee {fmtBp(r.feeBp)}</span>
-            <span className={`prov ${r.feeProvenance}`}>{r.feeProvenance}</span>
-            <span>execution {fmtBp(r.executionBp)}</span>
+            <span>Bitget's fee {usd(r.feeBp ?? 0, notional)}</span>
+            <span className={`prov ${r.feeProvenance}`}>
+              {r.feeProvenance === "measured" ? "from a real trade" : "published rate"}
+            </span>
+            <span>price gap {usd(r.executionBp ?? 0, notional)}</span>
           </div>
 
           {r.route === "perp" && r.fundingBp && (
             <div className={`funding ${wideBand ? "wide" : ""}`}>
-              <span className="fl">plus funding over {horizonDays}d</span>
+              <span className="fl">
+                {r.fundingBp.mid >= 0 ? "Holding fee" : "Holding payment to you"} over {horizonDays} days
+              </span>
               <span className="fv">
-                {fmtBp(r.fundingBp.mid)}
+                {usd(Math.abs(r.fundingBp.mid), notional)}
                 {bandWidth > 0.005 && (
-                  <em> anywhere from {fmtBp(r.fundingBp.low)} to {fmtBp(r.fundingBp.high)}</em>
+                  <em>
+                    could be anywhere from {usd(r.fundingBp.low, notional)} to {usd(r.fundingBp.high, notional)}
+                  </em>
                 )}
               </span>
             </div>
@@ -122,21 +157,26 @@ function RouteCard({
 
           {r.route === "perp" && r.totalBp && (
             <div className="route-sum">
-              total <strong>{fmtBp(r.totalBp.mid)}</strong>
-              {bandWidth > 0.005 && <span> ({fmtBp(r.totalBp.low)} to {fmtBp(r.totalBp.high)})</span>}
+              Expected all in: <strong>{usd(r.totalBp.mid, notional)}</strong>
+              {bandWidth > 0.005 && (
+                <span> somewhere between {usd(r.totalBp.low, notional)} and {usd(r.totalBp.high, notional)}</span>
+              )}
             </div>
           )}
 
           {wideBand && (
             <div className="note loud">
-              The cost of this route depends almost entirely on funding, and funding is not
-              predictable at {horizonDays} days. The band above is wider than the difference
-              between the routes, so treat the ranking as unsettled.
+              Most of this cost is the holding fee, and nobody can tell you what that will be
+              over {horizonDays} days. The uncertainty is larger than the gap between the two
+              options, so treat this ranking as a coin toss rather than an answer.
             </div>
           )}
 
           {r.absorbableUsd !== null && r.absorbableUsd < notional * 3 && (
-            <div className="note">Book holds about ${r.absorbableUsd.toLocaleString()} on the thinner side.</div>
+            <div className="note">
+              Only about ${r.absorbableUsd.toLocaleString()} is on offer, so a much larger order
+              would start moving the price against you.
+            </div>
           )}
         </>
       ) : (
@@ -188,14 +228,21 @@ export default function App() {
       const parsed = await parser.parse(text, tickers.length ? tickers : ["NVDA", "MSFT", "SOXL", "AAOI", "HOOD"]);
       const nextIntent: Intent = { ...parsed.intent, ...override };
       if (override?.constraints) nextIntent.constraints = { ...parsed.intent.constraints, ...override.constraints };
-      if (!nextIntent.ticker) throw new Error("No ticker recognised. Name a US stock, for example NVDA.");
+      if (!nextIntent.ticker) {
+        throw new Error("We could not spot a company in that. Name a US stock, for example NVDA or Tesla.");
+      }
 
       setParseInfo({ found: parsed.found, assumed: parsed.assumed, parser: parsed.parser, note: parsed.note });
       setIntent(nextIntent);
 
       const p = await resolvePair(nextIntent.ticker);
       if (id !== reqId.current) return;
-      if (!p) throw new Error(`${nextIntent.ticker} does not have both an rToken and a stock perp on Bitget.`);
+      if (!p) {
+        throw new Error(
+          `Bitget does not offer both a tokenized stock and a futures contract for ${nextIntent.ticker}, ` +
+          `so there is nothing to compare. Try a larger US name such as NVDA, AAPL or TSLA.`,
+        );
+      }
       setPair(p);
 
       const [spotRes, perpRes, fundRes] = await Promise.allSettled([
@@ -260,13 +307,13 @@ export default function App() {
       <header>
         <div className="brand">
           <h1>Tenor</h1>
-          <p>Can you trade it, at your size, at this hour, for how long.</p>
+          <p>
+            Bitget sells three ways to own the same US stock. They do not cost the same, and
+            which is cheapest changes with your size, the hour, and how long you hold.
+          </p>
         </div>
         <div className="live">
-          <span className={`dot ${session}`} /> {session}
-          <span className="sep" />
-          fee gap {Math.abs(feeGapBp(DEFAULT_FEES)).toFixed(2)}bp toward the{" "}
-          {feeGapBp(DEFAULT_FEES) < 0 ? "rToken" : "perp"}
+          <span className={`dot ${session}`} /> {SESSION_WORDS[session]}
         </div>
       </header>
 
@@ -285,7 +332,7 @@ export default function App() {
 
       {parseInfo && intent && (
         <section className="parsed">
-          <span className="label">Read as</span>
+          <span className="label">We read that as</span>
           <Chip k="ticker" v={intent.ticker} found={parseInfo.found.includes("ticker")} />
           <Chip k="size" v={`$${intent.notionalUsd.toLocaleString()}`} found={parseInfo.found.includes("size")} />
           <Chip k="direction" v={intent.direction} found={parseInfo.found.includes("direction")} />
@@ -294,9 +341,14 @@ export default function App() {
           {intent.constraints.wantsDividends && <Chip k="wants" v="dividends" found />}
           {intent.constraints.wantsVoting && <Chip k="wants" v="voting" found />}
           {intent.constraints.needsOffHoursExit && <Chip k="needs" v="off hours exit" found />}
-          <span className="parser">{parseInfo.parser === "model" ? "parsed by model" : "parsed by rules"}</span>
+          <span className="parser">
+            {parseInfo.parser === "model" ? "read by AI" : "read by simple rules"}
+          </span>
           {parseInfo.assumed.length > 0 && (
-            <span className="assumed">assumed: {parseInfo.assumed.join(", ")}. Edit the text to correct.</span>
+            <span className="assumed">
+              You did not say {parseInfo.assumed.join(", ")}, so we assumed the dashed ones. Change
+              your sentence if any is wrong.
+            </span>
           )}
           {parseInfo.note && <span className="assumed">{parseInfo.note}</span>}
         </section>
@@ -307,10 +359,16 @@ export default function App() {
       {quote && intent && (
         <>
           <nav className="tabs">
-            <button className={tab === "routes" ? "on" : ""} onClick={() => setTab("routes")}>Routes</button>
-            <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>By hour</button>
+            <button className={tab === "routes" ? "on" : ""} onClick={() => setTab("routes")}>
+              Your options
+            </button>
+            <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>
+              Best time to trade
+            </button>
             {quote.horizonDecides && (
-              <button className={tab === "breakeven" ? "on" : ""} onClick={() => setTab("breakeven")}>Break-even</button>
+              <button className={tab === "breakeven" ? "on" : ""} onClick={() => setTab("breakeven")}>
+                How long you hold
+              </button>
             )}
           </nav>
 
@@ -325,14 +383,16 @@ export default function App() {
                   best={r.rank === 1}
                   horizonDays={intent.horizonDays}
                   decisionBp={decisionGap(quote)}
+                  symbol={r.route === "rtoken" ? pair?.spotSymbol : r.route === "perp" ? pair?.perpSymbol : undefined}
                 />
               ))}
               {(["rtoken", "perp"] as const).map((route) => {
                 const b = outlook ? betterSession(outlook[route], session) : null;
                 return b ? (
                   <div className="hint" key={route}>
-                    {route === "rtoken" ? "rToken" : "Perp"} is {b.savingBp.toFixed(2)}bp cheaper in{" "}
-                    <strong>{b.session}</strong> than right now, on sampled medians.
+                    The {route === "rtoken" ? "tokenized stock" : "futures contract"} is usually{" "}
+                    <strong>{usd(b.savingBp, intent.notionalUsd)} cheaper</strong> to trade{" "}
+                    {SESSION_WORDS[b.session].toLowerCase()} than right now.
                   </div>
                 ) : null;
               })}
@@ -349,12 +409,14 @@ export default function App() {
 
           <section className="followups">
             <span className="label">What if</span>
-            <button onClick={() => void run({ horizonDays: 7 })}>I hold a week</button>
-            <button onClick={() => void run({ horizonDays: 90 })}>I hold 90 days</button>
-            <button onClick={() => void run({ notionalUsd: intent.notionalUsd * 5 })}>I size up 5x</button>
+            <button onClick={() => void run({ horizonDays: 7 })}>I only hold a week</button>
+            <button onClick={() => void run({ horizonDays: 90 })}>I hold three months</button>
+            <button onClick={() => void run({ notionalUsd: intent.notionalUsd * 5 })}>
+              I put in five times as much
+            </button>
             <button onClick={() => void run({ direction: intent.direction === "long" ? "short" : "long",
               constraints: { ...intent.constraints, needsShort: intent.direction === "long" } })}>
-              I flip direction
+              I bet the other way
             </button>
           </section>
 
@@ -363,11 +425,11 @@ export default function App() {
             {fetchedAt && (
               <div className="warn-line">
                 {fellBackAt !== null
-                  ? `Bitget did not answer, so these are the last good books, ${Math.round((now - fellBackAt) / 1000)}s old.`
-                  : `Books fetched live ${Math.round((now - fetchedAt) / 1000)}s ago.`}
-                {" "}Session medians from {coverage.records.toLocaleString()} samples over{" "}
-                {coverage.cycles} cycles, {String(coverage.from).slice(0, 16)} to {String(coverage.to).slice(0, 16)}.
-                {" "}That is about a day of data, not a quarter.
+                  ? `Bitget did not answer just now, so these prices are ${Math.round((now - fellBackAt) / 1000)} seconds old.`
+                  : `Prices read from Bitget ${Math.round((now - fetchedAt) / 1000)} seconds ago.`}
+                {" "}The hour-by-hour figures come from {coverage.records.toLocaleString()} price
+                checks taken every five minutes between {String(coverage.from).slice(0, 10)} and{" "}
+                {String(coverage.to).slice(0, 10)}. That is a few days of evidence, not years of it.
               </div>
             )}
           </section>
@@ -375,8 +437,10 @@ export default function App() {
       )}
 
       <footer>
-        Deterministic cost engine. rToken round trip {roundTripFeeBp("rtoken", DEFAULT_FEES).toFixed(2)}bp,
-        perp {roundTripFeeBp("perp", DEFAULT_FEES).toFixed(2)}bp. No figure on this page is generated by a model.
+        Every price here is read live from Bitget and worked out with ordinary arithmetic.
+        The AI only reads your sentence. It never produces a number you see.
+        Fees used: {pctOf(roundTripFeeBp("rtoken", DEFAULT_FEES))} to buy and sell the tokenized stock,
+        {" "}{pctOf(roundTripFeeBp("perp", DEFAULT_FEES))} for the futures contract.
       </footer>
     </div>
   );
@@ -392,41 +456,58 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
   const dead = quote.routes.find((r) => r.route !== "stockplus" && r.status === "no_book");
 
   if (!best) {
-    return <div className="verdict none"><strong>Nothing can trade this right now.</strong>
-      <span>Every route is ruled out. The reasons are below.</span></div>;
-  }
-  if (!second) {
     return (
-      <div className="verdict only">
-        <strong>{best.label} is the only route.</strong>
-        <span>{dead ? `${dead.label} has no order book at all, so there is nothing to compare.` : "Nothing else can express this."}</span>
+      <div className="verdict none">
+        <strong>There is no way to do this right now.</strong>
+        <span>All three options are ruled out. Each one says why underneath.</span>
       </div>
     );
   }
+
+  if (!second) {
+    return (
+      <div className="verdict only">
+        <strong>Only one option works: the {best.label.toLowerCase()}.</strong>
+        <span>
+          {dead
+            ? `Nobody is quoting a price for the ${dead.label.toLowerCase()} at all, so there is nothing to compare it against.`
+            : "Nothing else can do what you asked."}
+        </span>
+      </div>
+    );
+  }
+
   const diff = second.totalBp!.mid - best.totalBp!.mid;
-  // If either route's funding band is wider than the gap between them, the ranking is a
-  // coin toss dressed up as an answer. Say so in the headline rather than the footnotes.
+  /*
+   * If the holding-fee forecast is wider than the gap between the two options, the ranking
+   * is a coin toss wearing a suit. Say that in the headline, not the footnotes.
+   */
   const widestBand = Math.max(
     ...quote.routes.map((r) => (r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0)),
   );
   if (widestBand > Math.abs(diff)) {
     return (
       <div className="verdict unsettled">
-        <strong>Too close to call, and funding is why.</strong>
+        <strong>Too close to call.</strong>
         <span>
-          {best.label} leads by {diff.toFixed(2)}bp, but funding over{" "}
-          {quote.intent.horizonDays} days could move the answer by {widestBand.toFixed(0)}bp.
-          Getting in and out is the only part anyone can price today.
+          The {best.label.toLowerCase()} is ahead by {usd(diff, notional)}, but the holding fee on
+          the futures contract could swing the result by {usd(widestBand, notional)} over{" "}
+          {quote.intent.horizonDays} days. Buying and selling is the only part anyone can price
+          honestly today.
         </span>
       </div>
     );
   }
+
   return (
     <div className="verdict">
-      <strong>{best.label} by {diff.toFixed(2)}bp.</strong>
+      <strong>Use the {best.label.toLowerCase()}. It saves you {usd(diff, notional)}.</strong>
       <span>
-        That is {usd(diff, notional)} on ${notional.toLocaleString()}, decided by{" "}
-        {quote.horizonDecides ? "how long you hold it" : "what it costs to get in and out"}.
+        On ${notional.toLocaleString()} of {quote.intent.ticker}, held {quote.intent.horizonDays} days.
+        {" "}
+        {quote.horizonDecides
+          ? "The two are close enough that how long you hold is what decides it."
+          : "What decides it is the cost of getting in and back out, not the holding period."}
       </span>
     </div>
   );
