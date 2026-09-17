@@ -1,0 +1,8 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node ops/run-all.mjs"
+restartPolicyType = "always"
+numReplicas = 1
