@@ -12,9 +12,9 @@ import type { Session, SessionOutlook } from "../../engine/types.ts";
 
 const SESSIONS: Session[] = ["premarket", "regular", "afterhours", "overnight"];
 const LABELS: Record<string, string> = {
-  premarket: "Before the open",
-  regular: "US market hours",
-  afterhours: "After the close",
+  premarket: "Pre-market",
+  regular: "US hours",
+  afterhours: "After-hours",
   overnight: "Overnight",
 };
 
@@ -53,7 +53,7 @@ export function SessionChart({
   };
   const series = (["rtoken", "perp"] as const).map((route) => ({
     route,
-    label: route === "rtoken" ? "Tokenized stock" : "Futures contract",
+    label: route === "rtoken" ? "Tokenized stock" : "Perpetual futures",
     points: SESSIONS.map((s) => {
       const e = outlook[route].find((o) => o.session === s);
       return {
@@ -93,7 +93,7 @@ export function SessionChart({
       <h2>The same trade costs different amounts at different hours</h2>
       <p className="sub">
         What you lose to the gap between buying and selling price, on ${size.toLocaleString()},
-        typical across every check we have made. Bitget's fee and any holding fee are not in
+        typical across every check we have made. Fees and funding are not in
         this chart, only the cost of getting in and back out.
       </p>
 
@@ -164,7 +164,7 @@ export function SessionChart({
       <div className="legend">
         {series.map((s) => (
           <span key={s.route} className={`key ${s.route}`}>
-            <i /> {s.route === "rtoken" ? "Tokenized stock" : "Futures contract"}
+            <i /> {s.route === "rtoken" ? "Tokenized stock" : "Perpetual futures"}
           </span>
         ))}
         {/* Count samples that actually had a book. "413 rToken samples" beside four

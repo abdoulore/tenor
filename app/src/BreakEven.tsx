@@ -94,9 +94,9 @@ export function BreakEven({
     <section className="chart">
       <h2>What it costs you the longer you hold</h2>
       <p className="sub">
-        The tokenized stock charges you once, when you buy and sell, so its line is flat.
-        The futures contract keeps charging a holding fee, so its line climbs. The shaded
-        area is how wrong that holding fee could turn out to be.
+        The tokenized stock charges you once on the round trip, so its line is flat. The
+        perpetual keeps accruing funding, so its line climbs. The shaded area is how wrong
+        that funding projection could turn out to be.
       </p>
 
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="What it costs you the longer you hold">
@@ -138,16 +138,16 @@ export function BreakEven({
 
       <div className="legend">
         <span className="key rtoken"><i /> Tokenized stock</span>
-        <span className="key perp"><i /> Futures contract</span>
+        <span className="key perp"><i /> Perpetual futures</span>
       </div>
 
       <p className="sub">
         {curve.cross === null
           ? "These never cross within four months, so how long you hold does not change which one to use."
-          : `Hold for less than ${curve.cross.toFixed(0)} days and the futures contract is cheaper. ` +
-            `Hold longer and the tokenized stock wins, because the holding fee keeps adding up. ` +
+          : `Hold for less than ${curve.cross.toFixed(0)} days and the perpetual is cheaper. ` +
+            `Hold longer and the tokenized stock wins, because funding keeps adding up. ` +
             `You said ${quote.intent.horizonDays} days, which is on the ` +
-            `${quote.intent.horizonDays < curve.cross ? "futures" : "tokenized stock"} side of that line.`}
+            `${quote.intent.horizonDays < curve.cross ? "perpetual" : "tokenized stock"} side of that line.`}
       </p>
     </section>
   );

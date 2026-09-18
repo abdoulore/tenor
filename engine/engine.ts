@@ -214,7 +214,7 @@ function priceRoute(
     });
     fundingBp = proj.bp;
     if (proj.missing) {
-      const w = "This contract has no holding-fee history yet, so we show the holding cost as zero. The real figure can only be higher.";
+      const w = "No funding history for this perpetual yet, so funding is shown as zero. The real figure can only be higher.";
       if (!warnings.includes(w)) warnings.push(w);
     }
   } else {

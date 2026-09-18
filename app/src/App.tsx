@@ -159,21 +159,21 @@ function RouteCard({
             */}
           <div className="route-total">
             <strong>{usd(certain, notional)}</strong>
-            <span className="band"> to buy and sell again</span>
+            <span className="band"> round trip</span>
             <span className="sub"> {pctOf(certain)} of your ${notional.toLocaleString()}</span>
           </div>
           <div className="breakdown">
-            <span>Bitget's fee {usd(r.feeBp ?? 0, notional)}</span>
+            <span>fee {usd(r.feeBp ?? 0, notional)}</span>
             <span className={`prov ${r.feeProvenance}`}>
               {r.feeProvenance === "measured" ? "from a real trade" : "published rate"}
             </span>
-            <span>price gap {usd(r.executionBp ?? 0, notional)}</span>
+            <span>spread and slippage {usd(r.executionBp ?? 0, notional)}</span>
           </div>
 
           {r.route === "perp" && r.fundingBp && (
             <div className={`funding ${wideBand ? "wide" : ""}`}>
               <span className="fl">
-                {r.fundingBp.mid >= 0 ? "Holding fee" : "Holding payment to you"} over {horizonDays} days
+                {r.fundingBp.mid >= 0 ? "Funding" : "Funding paid to you"} over {horizonDays} days
               </span>
               <span className="fv">
                 {usd(Math.abs(r.fundingBp.mid), notional)}
@@ -197,7 +197,7 @@ function RouteCard({
 
           {wideBand && (
             <div className="note loud">
-              Most of this cost is the holding fee, and nobody can tell you what that will be
+              Most of this cost is funding, and nobody can tell you what that will be
               over {horizonDays} days. The uncertainty is larger than the gap between the two
               options, so treat this ranking as a coin toss rather than an answer.
             </div>
@@ -656,8 +656,8 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
       <div className="verdict unsettled">
         <strong>Too close to call.</strong>
         <span>
-          The {best.label.toLowerCase()} is ahead by {usd(diff, notional)}, but the holding fee on
-          the futures contract could swing the result by {usd(widestBand, notional)} over{" "}
+          The {best.label.toLowerCase()} is ahead by {usd(diff, notional)}, but funding on
+          the perpetual could swing the result by {usd(widestBand, notional)} over{" "}
           {quote.intent.horizonDays} days. Buying and selling is the only part anyone can price
           honestly today.
         </span>

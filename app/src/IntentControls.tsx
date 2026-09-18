@@ -146,7 +146,7 @@ export function IntentControls({
       </div>
 
       <div className="control">
-        <label htmlFor="f-direction">You think it will</label>
+        <label htmlFor="f-direction">Direction</label>
         <select
           id="f-direction"
           value={draft.direction ?? ""}
@@ -156,9 +156,9 @@ export function IntentControls({
             onChange({ direction, constraints: { needsShort: direction === "short" } });
           }}
         >
-          <option value="" disabled>Go up or down</option>
-          <option value="long">Go up</option>
-          <option value="short">Go down</option>
+          <option value="" disabled>Long or short</option>
+          <option value="long">Long</option>
+          <option value="short">Short</option>
         </select>
       </div>
 

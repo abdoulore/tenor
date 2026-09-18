@@ -349,13 +349,18 @@ group("engine: a stale route is still a tradeable route");
     session: "regular", books: { rtoken: makeBook(2, 100), perp: makeBook(2, 100) }, funding: settlements(30, 0), now: NOW,
   });
   check("genuinely ineligible still reports nothing tradeable", reallyDead.recommended === null);
-  check("the copy a user reads never says perp, rToken or basis point", (() => {
+  check("the copy a user reads avoids Bitget-internal jargon and desk units", (() => {
     const text = [
       ...q.routes.map((r) => r.reason ?? ""),
       ...q.warnings,
       ...q.routes.map((r) => r.label),
     ].join(" ");
-    return !/perp|rToken|basis point|bp|order book|notional/i.test(text);
+    /*
+     * Deliberately permits perpetual, funding, spread, long and short. Those are the words
+     * this audience already trades in, and replacing them explained things nobody needed
+     * explained. What stays blocked is Bitget-internal naming and desk units.
+     */
+    return !/rToken|basis point|bp|order book|notional/i.test(text);
   })());
 }
 

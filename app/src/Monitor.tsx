@@ -27,7 +27,7 @@ const VERDICT: Record<string, { title: string; tone: string }> = {
 
 const ROUTE_WORD: Record<string, string> = {
   rtoken: "tokenized stock",
-  perp: "futures contract",
+  perp: "perpetual futures",
   stockplus: "Stock+",
 };
 
@@ -155,7 +155,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
           onChange={(e) => setForm((f) => ({ ...f, route: e.target.value as Position["route"] }))}
           aria-label="What you hold"
         >
-          <option value="perp">I hold the futures contract</option>
+          <option value="perp">I hold the perpetual</option>
           <option value="rtoken">I hold the tokenized stock</option>
         </select>
         <select
@@ -238,7 +238,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
                     {Math.abs(a.netSavingBp.high - a.netSavingBp.low) > 0.01 && (
                       <span className="band">
                         anywhere from {money(a.netSavingBp.low, p.notionalUsd)} to{" "}
-                        {money(a.netSavingBp.high, p.notionalUsd)}, because the holding fee is a forecast
+                        {money(a.netSavingBp.high, p.notionalUsd)}, because funding is a forecast
                       </span>
                     )}
                   </div>

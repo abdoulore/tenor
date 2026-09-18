@@ -17,14 +17,14 @@ import type { Constraints, Direction, RouteId, Session } from "./types.ts";
  */
 export const ROUTE_LABELS: Record<RouteId, string> = {
   rtoken: "Tokenized stock",
-  perp: "Futures contract",
+  perp: "Perpetual futures",
   stockplus: "Stock+",
 };
 
 /** One line saying what each thing actually is, shown under the name. */
 export const ROUTE_BLURBS: Record<RouteId, string> = {
-  rtoken: "You own a token that tracks the share price. No leverage, no ongoing cost.",
-  perp: "A contract that tracks the price. Can be leveraged, can bet on a fall, but you pay or receive a holding fee every 8 hours.",
+  rtoken: "Spot. You own a token tracking the share price. No leverage, no funding.",
+  perp: "Tracks the price with no expiry. Can be leveraged and can go short, but you pay or receive funding every 8 hours.",
   stockplus: "Bitget's own stock product. Trades during US market hours only.",
 };
 
@@ -93,7 +93,7 @@ export function checkEligibility(
     if (!cap.canShort) {
       return {
         eligible: false,
-        reason: `You cannot bet on a price falling with ${label.toLowerCase()}, because you have to own it first. Only a futures contract can do that.`,
+        reason: `You cannot bet on a price falling with ${label.toLowerCase()}, because you have to own it first. Only the perpetual can do that.`,
         unverified,
       };
     }

@@ -57,8 +57,7 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
           <span className="rlabel">Still unresolved</span>
           <strong>{r.funding.elapsedDays} of 30 days</strong>
           <span className="rnote">
-            Every forecast runs 30 days. None has finished, so the holding-fee half of them
-            cannot be judged yet.
+            Every forecast runs 30 days. None has finished, so the funding half of them cannot be judged yet.
           </span>
         </div>
       </div>
@@ -122,8 +121,8 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
                 <tr key={i}>
                   <td>{f.ticker}</td>
                   <td>${fmt(f.size)}</td>
-                  <td>{f.said === "rtoken" ? "Tokenized stock" : "Futures"}</td>
-                  <td className="became">{f.became === "rtoken" ? "Tokenized stock" : "Futures"}</td>
+                  <td>{f.said === "rtoken" ? "Tokenized stock" : "Perpetual"}</td>
+                  <td className="became">{f.became === "rtoken" ? "Tokenized stock" : "Perpetual"}</td>
                   <td>{money(f.gapBp)}</td>
                 </tr>
               ))}
