@@ -15,10 +15,13 @@ import { sessionLabel } from "../../engine/book.ts";
 import { DEFAULT_FEES, roundTripFeeBp } from "../../engine/fees.ts";
 import { ROUTE_BLURBS } from "../../engine/eligibility.ts";
 import { crossoverDays } from "../../engine/funding.ts";
-import type { Book, Intent, Quote, RouteResult, Session, SessionOutlook } from "../../engine/types.ts";
+import type {
+  Book, Constraints, Intent, Quote, RouteResult, Session, SessionOutlook,
+} from "../../engine/types.ts";
 import type { Settlement } from "../../engine/funding.ts";
 import { getParser } from "./parse.ts";
 import outlookData from "./data/outlook.json";
+import { IntentControls, type FieldOrigin } from "./IntentControls.tsx";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
 
@@ -191,7 +194,9 @@ export default function App() {
   const [text, setText] = useState("$2,000 of NVDA for a month, no leverage");
   const [tickers, setTickers] = useState<string[]>([]);
   const [intent, setIntent] = useState<Intent | null>(null);
-  const [parseInfo, setParseInfo] = useState<{ found: string[]; assumed: string[]; parser: string; note?: string } | null>(null);
+  /** Where each field's current value came from, so nothing on screen is unexplained. */
+  const [origins, setOrigins] = useState<Record<string, FieldOrigin>>({});
+  const [parseInfo, setParseInfo] = useState<{ parser: string; note?: string } | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [pair, setPair] = useState<Pair | null>(null);
   const [books, setBooks] = useState<{ spot: Book; perp: Book } | null>(null);
@@ -220,56 +225,68 @@ export default function App() {
 
   useEffect(() => { listTickers().then(setTickers).catch(() => setTickers([])); }, []);
 
-  const run = useCallback(async (override?: Partial<Intent>) => {
+  /** Fetch the two markets for a ticker. Only needed when the company changes. */
+  const loadMarket = useCallback(async (ticker: string, id: number) => {
+    const p = await resolvePair(ticker);
+    if (id !== reqId.current) return false;
+    if (!p) {
+      throw new Error(
+        `Bitget does not offer both a tokenized stock and a futures contract for ${ticker}, ` +
+        `so there is nothing to compare. Try a larger US name such as NVDA, AAPL or TSLA.`,
+      );
+    }
+    setPair(p);
+
+    const [spotRes, perpRes, fundRes] = await Promise.allSettled([
+      fetchBook("SPOT", p.spotSymbol),
+      fetchBook("USDT-FUTURES", p.perpSymbol),
+      fetchFunding(p.perpSymbol),
+    ]);
+    if (id !== reqId.current) return false;
+
+    // An empty book is a live answer and must not be confused with a failed call. Only a
+    // rejection falls back, and only then is anything stale.
+    const prev = lastGood.current;
+    const failed = spotRes.status === "rejected" || perpRes.status === "rejected";
+    const spot = spotRes.status === "fulfilled" ? spotRes.value : prev?.spot;
+    const perp = perpRes.status === "fulfilled" ? perpRes.value : prev?.perp;
+    if (!spot || !perp) throw new Error("Bitget did not answer and there is no earlier price to fall back on.");
+
+    if (!failed) {
+      lastGood.current = { spot, perp, at: Date.now() };
+      setFellBackAt(null);
+    } else {
+      setFellBackAt(prev?.at ?? null);
+    }
+
+    setBooks({ spot, perp });
+    setFunding(fundRes.status === "fulfilled" ? fundRes.value : []);
+    setFetchedAt(Date.now());
+    return true;
+  }, []);
+
+  /** Read the sentence, then load whatever it named. */
+  const run = useCallback(async () => {
     const id = ++reqId.current;
     setStatus("loading");
     setError(null);
     try {
       const parsed = await parser.parse(text, tickers.length ? tickers : ["NVDA", "MSFT", "SOXL", "AAOI", "HOOD"]);
-      const nextIntent: Intent = { ...parsed.intent, ...override };
-      if (override?.constraints) nextIntent.constraints = { ...parsed.intent.constraints, ...override.constraints };
-      if (!nextIntent.ticker) {
+      if (id !== reqId.current) return;
+      if (!parsed.intent.ticker) {
         throw new Error("We could not spot a company in that. Name a US stock, for example NVDA or Tesla.");
       }
 
-      setParseInfo({ found: parsed.found, assumed: parsed.assumed, parser: parsed.parser, note: parsed.note });
-      setIntent(nextIntent);
-
-      const p = await resolvePair(nextIntent.ticker);
-      if (id !== reqId.current) return;
-      if (!p) {
-        throw new Error(
-          `Bitget does not offer both a tokenized stock and a futures contract for ${nextIntent.ticker}, ` +
-          `so there is nothing to compare. Try a larger US name such as NVDA, AAPL or TSLA.`,
-        );
+      const next: Record<string, FieldOrigin> = {};
+      for (const f of ["ticker", "size", "direction", "horizon", "leverage"]) {
+        next[f] = parsed.found.includes(f) ? "read" : "assumed";
       }
-      setPair(p);
+      setOrigins(next);
+      setParseInfo({ parser: parsed.parser, note: parsed.note });
+      setIntent(parsed.intent);
 
-      const [spotRes, perpRes, fundRes] = await Promise.allSettled([
-        fetchBook("SPOT", p.spotSymbol),
-        fetchBook("USDT-FUTURES", p.perpSymbol),
-        fetchFunding(p.perpSymbol),
-      ]);
+      await loadMarket(parsed.intent.ticker, id);
       if (id !== reqId.current) return;
-
-      // An empty book is a live answer and must not be confused with a failed call. Only a
-      // rejection falls back, and only then is anything stale.
-      const prev = lastGood.current;
-      const failed = spotRes.status === "rejected" || perpRes.status === "rejected";
-      const spot = spotRes.status === "fulfilled" ? spotRes.value : prev?.spot;
-      const perp = perpRes.status === "fulfilled" ? perpRes.value : prev?.perp;
-      if (!spot || !perp) throw new Error("Bitget did not answer and there is no earlier price to fall back on.");
-
-      if (!failed) {
-        lastGood.current = { spot, perp, at: Date.now() };
-        setFellBackAt(null);
-      } else {
-        setFellBackAt(prev?.at ?? null);
-      }
-
-      setBooks({ spot, perp });
-      setFunding(fundRes.status === "fulfilled" ? fundRes.value : []);
-      setFetchedAt(Date.now());
       setStatus("idle");
     } catch (e) {
       if (id !== reqId.current) return;
@@ -277,7 +294,50 @@ export default function App() {
       setStatus("error");
       setQuote(null);
     }
-  }, [parser, text, tickers]);
+  }, [parser, text, tickers, loadMarket]);
+
+  /**
+   * Edit a field directly.
+   *
+   * This never re-reads the sentence. The controls are the intent, so what you set is what
+   * gets priced, and the sentence above is only how it started. Changing the company is the
+   * one edit that needs fresh prices from Bitget.
+   */
+  const edit = useCallback((patch: Partial<Intent> & { constraints?: Partial<Constraints> }) => {
+    setIntent((prev) => {
+      if (!prev) return prev;
+      const next: Intent = {
+        ...prev,
+        ...patch,
+        constraints: { ...prev.constraints, ...(patch.constraints ?? {}) },
+      };
+      return next;
+    });
+
+    setOrigins((prev) => {
+      const out = { ...prev };
+      if (patch.ticker !== undefined) out.ticker = "edited";
+      if (patch.notionalUsd !== undefined) out.size = "edited";
+      if (patch.direction !== undefined) out.direction = "edited";
+      if (patch.horizonDays !== undefined) out.horizon = "edited";
+      if (patch.constraints?.leverage !== undefined) out.leverage = "edited";
+      return out;
+    });
+
+    if (patch.ticker !== undefined && patch.ticker.length >= 1) {
+      const id = ++reqId.current;
+      setStatus("loading");
+      setError(null);
+      loadMarket(patch.ticker, id)
+        .then((ok) => { if (ok) setStatus("idle"); })
+        .catch((e) => {
+          if (id !== reqId.current) return;
+          setError((e as Error).message);
+          setStatus("error");
+          setQuote(null);
+        });
+    }
+  }, [loadMarket]);
 
   // Re-price whenever anything it depends on moves. Pricing is pure and cheap, so this is
   // recomputed rather than cached, which keeps the staleness indicator honest.
@@ -319,6 +379,7 @@ export default function App() {
 
       <section className="intent">
         <textarea
+          aria-label="Describe what you want to do"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void run(); }}
@@ -326,33 +387,21 @@ export default function App() {
           placeholder="$2,000 of NVDA for a month, no leverage"
         />
         <button onClick={() => void run()} disabled={status === "loading"}>
-          {status === "loading" ? "Pricing" : "Price it"}
+          {status === "loading" ? "Reading" : "Read this"}
         </button>
       </section>
 
-      {parseInfo && intent && (
-        <section className="parsed">
-          <span className="label">We read that as</span>
-          <Chip k="ticker" v={intent.ticker} found={parseInfo.found.includes("ticker")} />
-          <Chip k="size" v={`$${intent.notionalUsd.toLocaleString()}`} found={parseInfo.found.includes("size")} />
-          <Chip k="direction" v={intent.direction} found={parseInfo.found.includes("direction")} />
-          <Chip k="horizon" v={`${intent.horizonDays}d`} found={parseInfo.found.includes("horizon")} />
-          <Chip k="leverage" v={`${intent.constraints.leverage}x`} found={parseInfo.found.includes("leverage")} />
-          {intent.constraints.wantsDividends && <Chip k="wants" v="dividends" found />}
-          {intent.constraints.wantsVoting && <Chip k="wants" v="voting" found />}
-          {intent.constraints.needsOffHoursExit && <Chip k="needs" v="off hours exit" found />}
-          <span className="parser">
-            {parseInfo.parser === "model" ? "read by AI" : "read by simple rules"}
-          </span>
-          {parseInfo.assumed.length > 0 && (
-            <span className="assumed">
-              You did not say {parseInfo.assumed.join(", ")}, so we assumed the dashed ones. Change
-              your sentence if any is wrong.
-            </span>
-          )}
-          {parseInfo.note && <span className="assumed">{parseInfo.note}</span>}
-        </section>
+      {intent && (
+        <IntentControls
+          intent={intent}
+          origins={origins}
+          tickers={tickers}
+          onChange={edit}
+          busy={status === "loading"}
+        />
       )}
+
+      {parseInfo?.note && <div className="assumed standalone">{parseInfo.note}</div>}
 
       {error && <section className="error"><strong>Cannot price this.</strong> {error}</section>}
 
@@ -409,13 +458,17 @@ export default function App() {
 
           <section className="followups">
             <span className="label">What if</span>
-            <button onClick={() => void run({ horizonDays: 7 })}>I only hold a week</button>
-            <button onClick={() => void run({ horizonDays: 90 })}>I hold three months</button>
-            <button onClick={() => void run({ notionalUsd: intent.notionalUsd * 5 })}>
+            <button onClick={() => edit({ horizonDays: 7 })}>I only hold a week</button>
+            <button onClick={() => edit({ horizonDays: 90 })}>I hold three months</button>
+            <button onClick={() => edit({ notionalUsd: intent.notionalUsd * 5 })}>
               I put in five times as much
             </button>
-            <button onClick={() => void run({ direction: intent.direction === "long" ? "short" : "long",
-              constraints: { ...intent.constraints, needsShort: intent.direction === "long" } })}>
+            <button
+              onClick={() => {
+                const direction = intent.direction === "long" ? "short" : "long";
+                edit({ direction, constraints: { needsShort: direction === "short" } });
+              }}
+            >
               I bet the other way
             </button>
           </section>

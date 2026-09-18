@@ -220,3 +220,51 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(232,178,58,0.10), transparent);
   border-color: rgba(232,178,58,0.35);
 }
+
+/* ---------------------------------------------------------------- intent controls
+
+   These are the intent, not a description of it. Everything here is editable, because a
+   misread sentence should be correctable in one click rather than by rewriting the sentence
+   and hoping the parser agrees the second time. */
+
+.controls {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px; margin: 4px 0 22px; padding: 18px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+}
+.control { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.control > label {
+  font-size: 12px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.07em;
+}
+.control input[type="text"], .control input:not([type]), .control select {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; font-size: 15px; font-family: var(--sans); width: 100%;
+}
+.control input:focus, .control select:focus { outline: none; border-color: var(--rtoken); }
+.control input:disabled, .control select:disabled { opacity: 0.55; }
+
+.origin { font-size: 11px; letter-spacing: 0.03em; }
+.origin.read { color: var(--good); }
+.origin.assumed { color: var(--dim); }
+.origin.edited { color: var(--rtoken); }
+
+.control.wants { grid-column: 1 / -1; }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--muted); cursor: pointer;
+}
+.check input { accent-color: var(--rtoken); width: 16px; height: 16px; cursor: pointer; }
+
+.assumed.standalone { display: block; margin: -12px 0 16px; font-size: 13px; color: var(--dim); }
+
+.route-head .symbol {
+  font-family: var(--mono); font-size: 11px; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px;
+}
+.blurb { margin-top: 6px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+
+@media (max-width: 620px) {
+  .controls { grid-template-columns: 1fr; }
+}
