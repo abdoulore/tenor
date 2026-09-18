@@ -28,8 +28,17 @@ const HOLD_PERIODS: { label: string; days: number }[] = [
 
 const LEVERAGE = [1, 2, 3, 5, 10, 20];
 
-function Origin({ origin }: { origin: FieldOrigin }) {
-  const text = origin === "read" ? "from your words" : origin === "edited" ? "you changed this" : "assumed";
+/**
+ * Says where a value came from, but only when that is worth saying.
+ *
+ * Before anyone has typed a sentence every field is a default, so labelling all of them
+ * "assumed" is four repetitions of nothing. It only carries information once a sentence has
+ * been read, when "assumed" means "you did not mention this, check it".
+ */
+function Origin({ origin, showAssumed }: { origin: FieldOrigin; showAssumed: boolean }) {
+  if (origin === "assumed" && !showAssumed) return null;
+  const text =
+    origin === "read" ? "from your words" : origin === "edited" ? "you changed this" : "you did not say";
   return <span className={`origin ${origin}`}>{text}</span>;
 }
 
@@ -48,10 +57,13 @@ export function IntentControls({
   groups,
   onChange,
   busy,
+  fromSentence,
 }: {
   intent: Intent;
   origins: Record<string, FieldOrigin>;
   groups: TickerGroups;
+  /** True once a sentence has been read, which is when "you did not say" means something. */
+  fromSentence: boolean;
   onChange: (patch: Partial<Intent> & { constraints?: Partial<Constraints> }) => void;
   busy: boolean;
 }) {
@@ -105,7 +117,7 @@ export function IntentControls({
             {groups.untracked.map((t) => <option key={t} value={t}>{t} — not tracked</option>)}
           </optgroup>
         </select>
-        <Origin origin={origins.ticker ?? "assumed"} />
+        <Origin origin={origins.ticker ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
@@ -120,7 +132,7 @@ export function IntentControls({
             <option key={a} value={a}>${a.toLocaleString()}</option>
           ))}
         </select>
-        <Origin origin={origins.size ?? "assumed"} />
+        <Origin origin={origins.size ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
@@ -137,7 +149,7 @@ export function IntentControls({
           <option value="long">Go up</option>
           <option value="short">Go down</option>
         </select>
-        <Origin origin={origins.direction ?? "assumed"} />
+        <Origin origin={origins.direction ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
@@ -152,7 +164,7 @@ export function IntentControls({
             <option key={p.days} value={p.days}>{p.label}</option>
           ))}
         </select>
-        <Origin origin={origins.horizon ?? "assumed"} />
+        <Origin origin={origins.horizon ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
@@ -167,7 +179,7 @@ export function IntentControls({
             <option key={l} value={l}>{l === 1 ? "No, just my own money" : `Yes, ${l} times`}</option>
           ))}
         </select>
-        <Origin origin={origins.leverage ?? "assumed"} />
+        <Origin origin={origins.leverage ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       {(isDead || isUntracked) && (

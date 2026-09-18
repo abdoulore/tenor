@@ -448,6 +448,7 @@ export default function App() {
           intent={intent}
           origins={origins}
           groups={tickerGroups}
+          fromSentence={parseInfo !== null}
           onChange={edit}
           busy={status === "loading"}
         />

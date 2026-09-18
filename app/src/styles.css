@@ -244,7 +244,9 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .control input:focus, .control select:focus { outline: none; border-color: var(--rtoken); }
 .control input:disabled, .control select:disabled { opacity: 0.55; }
 
-.origin { font-size: 11px; letter-spacing: 0.03em; }
+/* Reserve the line so fields do not jump when a label appears after a sentence is read. */
+.control { min-height: 84px; }
+.origin { font-size: 11px; letter-spacing: 0.03em; min-height: 14px; }
 .origin.read { color: var(--good); }
 .origin.assumed { color: var(--dim); }
 .origin.edited { color: var(--rtoken); }
