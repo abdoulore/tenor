@@ -26,6 +26,7 @@ import outlookData from "./data/outlook.json";
 import {
   IntentControls, EMPTY_DRAFT, isComplete, type Draft, type TickerGroups,
 } from "./IntentControls.tsx";
+import { Monitor } from "./Monitor.tsx";
 import { Receipts } from "./Receipts.tsx";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
@@ -251,7 +252,7 @@ export default function App() {
   const [funding, setFunding] = useState<Settlement[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"routes" | "sessions" | "breakeven" | "receipts">("routes");
+  const [tab, setTab] = useState<"routes" | "sessions" | "breakeven" | "receipts" | "monitor">("routes");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   /** Nothing is priced until this is true. */
   const [asked, setAsked] = useState(false);
@@ -431,6 +432,14 @@ export default function App() {
             {tab === "receipts" ? "Back" : "Track record"}
           </button>
           <span className="sep" />
+          <button
+            type="button"
+            className={`recordlink ${tab === "monitor" ? "on" : ""}`}
+            onClick={() => setTab(tab === "monitor" ? "routes" : "monitor")}
+          >
+            {tab === "monitor" ? "Back" : "What I hold"}
+          </button>
+          <span className="sep" />
           <span className={`dot ${session}`} /> {SESSION_WORDS[session]}
         </div>
       </header>
@@ -503,12 +512,15 @@ export default function App() {
               How long you hold
             </button>
           )}
-          <button className={`right ${tab === "receipts" ? "on" : ""}`} onClick={() => setTab("receipts")}>
+          <button className={`right ${tab === "monitor" ? "on" : ""}`} onClick={() => setTab("monitor")}>
+            What I hold
+          </button>
+          <button className={tab === "receipts" ? "on" : ""} onClick={() => setTab("receipts")}>
             Track record
           </button>
         </nav>
       ) : (
-        tab !== "receipts" && (
+        tab !== "receipts" && tab !== "monitor" && (
           <button type="button" className="recordcta" onClick={() => setTab("receipts")}>
             Or see every call this tool has made, and whether it held up
             <span className="arrow">-&gt;</span>
@@ -517,8 +529,9 @@ export default function App() {
       )}
 
       {tab === "receipts" && <Receipts notional={intent?.notionalUsd ?? 2_000} />}
+      {tab === "monitor" && <Monitor groups={tickerGroups} />}
 
-      {quote && intent && tab !== "receipts" && (
+      {quote && intent && tab !== "receipts" && tab !== "monitor" && (
         <>
 
           {tab === "routes" && (

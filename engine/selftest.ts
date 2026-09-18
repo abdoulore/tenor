@@ -14,6 +14,7 @@ import { checkEligibility } from "./eligibility.ts";
 import { crossoverDays, projectFunding, quantile, trailingDailyFunding, type Settlement } from "./funding.ts";
 import { betterSession, priceIntent } from "./engine.ts";
 import { predictionFile, toRecord } from "./predictions.ts";
+import { analysePosition, daysRemaining, type Position } from "./monitor.ts";
 import { DEFAULT_CONSTRAINTS, type Book, type Intent, type SessionOutlook } from "./types.ts";
 
 let failures = 0;
@@ -498,6 +499,119 @@ group("engine: funding actually moves the answer");
     const a = short1.routes.find((r) => r.route === "perp")!.fundingBp!.mid;
     const b = short90.routes.find((r) => r.route === "perp")!.fundingBp!.mid;
     return near(b, a * 90, 0.5);
+  })());
+}
+
+// ---------------------------------------------------------------- monitor
+
+group("monitor: should you move a position you already hold");
+{
+  const position = (over: Partial<Position> = {}): Position => ({
+    id: "p1",
+    ticker: "NVDA",
+    route: "perp",
+    notionalUsd: 10_000,
+    direction: "long",
+    openedAt: new Date(NOW - 10 * DAY).toISOString(),
+    horizonDays: 30,
+    ...over,
+  });
+
+  check("days remaining counts down from opening",
+    near(daysRemaining(position(), NOW), 20, 0.01), `${daysRemaining(position(), NOW)}`);
+  check("an overrun position has no days left",
+    daysRemaining(position({ horizonDays: 5 }), NOW) === 0);
+
+  const books = { rtoken: makeBook(4, 100), perp: makeBook(2, 100) };
+
+  // Expensive funding on the perp is the case where moving is genuinely right.
+  const costly = analysePosition(position(), {
+    books, funding: settlements(30, 0.002), now: NOW,
+  });
+  check("costly funding says move", costly.verdict === "switch", costly.verdict);
+  check("it names what moving costs", (costly.switchCostBp ?? 0) > 0);
+  check("it quantifies the saving", (costly.netSavingBp?.mid ?? 0) > 0);
+  check("it says when the move pays for itself", costly.breakevenDays > 0 && costly.breakevenDays < 30);
+  check("the message is in dollars, not basis points",
+    /\$\d/.test(costly.message) && !/bp/.test(costly.message), costly.message);
+
+  // Zero funding is the common case, and moving then is pure cost.
+  const quiet = analysePosition(position(), { books, funding: settlements(30, 0), now: NOW });
+  check("zero funding says stay", quiet.verdict === "stay", quiet.verdict);
+  check("staying is explained in what it would have cost", /would cost/.test(quiet.message));
+
+  /*
+   * The case that matters most for trust: cheaper elsewhere, but not by enough to cover the
+   * round trip. A tool that tells you to pay $12 to save $4 is worse than useless.
+   *
+   * Rather than hand-picking a funding rate that lands in that window, sweep until one does.
+   * The invariant is what matters, not the constant, and a hand-picked constant stops testing
+   * anything the moment a fee changes.
+   */
+  const tight = { rtoken: makeBook(0.5, 100), perp: makeBook(0.5, 100) };
+  let marginal: ReturnType<typeof analysePosition> | null = null;
+  for (let rate = 0.000002; rate < 0.00006; rate += 0.000002) {
+    const a = analysePosition(position(), { books: tight, funding: settlements(30, rate), now: NOW });
+    if (a.verdict === "not_worth_it") { marginal = a; break; }
+  }
+  check("there is a band where moving is cheaper but not worth it", marginal !== null);
+  if (marginal) {
+    check("and it says so plainly", /Not worth the trade/.test(marginal.message), marginal.message);
+    check("the saving is real but smaller than the move",
+      (marginal.netSavingBp?.mid ?? 0) > 0 && (marginal.netSavingBp?.mid ?? 0) < (marginal.switchCostBp ?? 0));
+  }
+
+  // The rule the whole feature rests on: never advise a move that does not clear its own cost
+  // by the margin of safety. Swept across a wide range of funding levels.
+  check("a move is never advised unless it clears its cost by the margin", (() => {
+    for (let rate = 0; rate < 0.004; rate += 0.00005) {
+      const a = analysePosition(position(), { books: tight, funding: settlements(30, rate), now: NOW });
+      if (a.verdict !== "switch") continue;
+      if ((a.netSavingBp?.mid ?? 0) <= (a.switchCostBp ?? 0) * 0.25) return false;
+    }
+    return true;
+  })());
+
+  // Being unable to get out matters more than whether leaving would be wise.
+  const stuck = analysePosition(position({ route: "rtoken" }), {
+    books: { rtoken: EMPTY_BOOK, perp: makeBook(2, 100) }, funding: settlements(30, 0), now: NOW,
+  });
+  check("no market means stuck, not stay", stuck.verdict === "stuck", stuck.verdict);
+  check("stuck is flagged on the analysis", stuck.cannotExit === true);
+  check("stuck says you could not sell", /could not sell/.test(stuck.message));
+  check("stuck offers no switch arithmetic", stuck.netSavingBp === null);
+
+  // Nowhere to move to is a different answer from "moving is a bad idea".
+  const nowhere = analysePosition(position(), {
+    books: { perp: makeBook(2, 100), rtoken: EMPTY_BOOK }, funding: settlements(30, 0.002), now: NOW,
+  });
+  check("no alternative means stay", nowhere.verdict === "stay", nowhere.verdict);
+  check("and says there is nowhere to go", /no other tradeable way/.test(nowhere.message));
+
+  // An alternative too thin to absorb the position is not an alternative.
+  const thin = analysePosition(position(), {
+    books: { perp: makeBook(2, 100), rtoken: makeBook(2, 0.2, 3) },
+    funding: settlements(30, 0.002), now: NOW,
+  });
+  check("an unfillable alternative means stay", thin.verdict === "stay", thin.verdict);
+  check("and says it cannot absorb the size", /cannot absorb/.test(thin.message));
+
+  // Holding the spot side, there is no funding to escape, so moving is never right.
+  const onSpot = analysePosition(position({ route: "rtoken" }), {
+    books, funding: settlements(30, 0.002), now: NOW,
+  });
+  check("holding the unfunded side, moving is never advised", onSpot.verdict !== "switch", onSpot.verdict);
+  check("the funding it would take on is counted", (onSpot.switchFundingBp?.mid ?? 0) > 0);
+
+  // The range has to survive into the recommendation.
+  check("the saving is a range, not a point",
+    costly.netSavingBp !== null && costly.netSavingBp.low <= costly.netSavingBp.mid
+      && costly.netSavingBp.mid <= costly.netSavingBp.high);
+  check("a bigger margin of safety refuses more moves", (() => {
+    const strict = analysePosition(position(), {
+      books, funding: settlements(30, 0.0002), now: NOW, marginOfSafety: 50,
+    });
+    return strict.verdict !== "switch";
   })());
 }
 
