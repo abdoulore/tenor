@@ -423,6 +423,14 @@ export default function App() {
           </p>
         </div>
         <div className="live">
+          <button
+            type="button"
+            className={`recordlink ${tab === "receipts" ? "on" : ""}`}
+            onClick={() => setTab(tab === "receipts" ? "routes" : "receipts")}
+          >
+            {tab === "receipts" ? "Back" : "Track record"}
+          </button>
+          <span className="sep" />
           <span className={`dot ${session}`} /> {SESSION_WORDS[session]}
         </div>
       </header>
@@ -482,22 +490,31 @@ export default function App() {
 
       {error && <section className="error"><strong>Cannot price this.</strong> {error}</section>}
 
-      <nav className="tabs">
-        <button className={tab === "routes" ? "on" : ""} onClick={() => setTab("routes")} disabled={!quote}>
-          Your options
-        </button>
-        <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")} disabled={!quote}>
-          Best time to trade
-        </button>
-        {quote?.horizonDecides && (
-          <button className={tab === "breakeven" ? "on" : ""} onClick={() => setTab("breakeven")}>
-            How long you hold
+      {quote ? (
+        <nav className="tabs">
+          <button className={tab === "routes" ? "on" : ""} onClick={() => setTab("routes")}>
+            Your options
           </button>
-        )}
-        <button className={`right ${tab === "receipts" ? "on" : ""}`} onClick={() => setTab("receipts")}>
-          Track record
-        </button>
-      </nav>
+          <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>
+            Best time to trade
+          </button>
+          {quote.horizonDecides && (
+            <button className={tab === "breakeven" ? "on" : ""} onClick={() => setTab("breakeven")}>
+              How long you hold
+            </button>
+          )}
+          <button className={`right ${tab === "receipts" ? "on" : ""}`} onClick={() => setTab("receipts")}>
+            Track record
+          </button>
+        </nav>
+      ) : (
+        tab !== "receipts" && (
+          <button type="button" className="recordcta" onClick={() => setTab("receipts")}>
+            Or see every call this tool has made, and whether it held up
+            <span className="arrow">-&gt;</span>
+          </button>
+        )
+      )}
 
       {tab === "receipts" && <Receipts notional={intent?.notionalUsd ?? 2_000} />}
 
