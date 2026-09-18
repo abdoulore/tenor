@@ -177,16 +177,8 @@ export function IntentControls({
         </select>
       </div>
 
-      {/*
-        * Leverage, said in dollars.
-        *
-        * "Borrow to boost it: yes, 2 times" does not say what is doubled, and a multiplier
-        * on its own is meaningless without the amount beside it. Spelling out the exposure
-        * it buys makes the choice concrete, and the note below makes its consequence visible
-        * before pricing rather than as a rejection afterwards.
-        */}
       <div className="control">
-        <label htmlFor="f-leverage">Borrow to trade bigger</label>
+        <label htmlFor="f-leverage">Leverage</label>
         <select
           id="f-leverage"
           value={c.leverage}
@@ -194,40 +186,10 @@ export function IntentControls({
           onChange={(e) => setC({ leverage: Number(e.target.value) })}
         >
           {levels.map((l) => (
-            <option key={l} value={l}>
-              {l === 1
-                ? "No, just my own money"
-                : draft.notionalUsd
-                  ? `Yes, control $${(draft.notionalUsd * l).toLocaleString()} with my $${draft.notionalUsd.toLocaleString()}`
-                  : `Yes, ${l} times my money`}
-            </option>
+            <option key={l} value={l}>{l}x</option>
           ))}
         </select>
-        {c.leverage > 1 && (
-          <p className="fieldnote">
-            Borrowing {c.leverage} times means a {(100 / c.leverage).toFixed(0)}% move against you
-            wipes out your stake. Only the futures contract can do this; the tokenized stock is
-            bought outright with your own money.
-          </p>
-        )}
       </div>
-
-      {(isDead || isUntracked) && (
-        <div className="control picker-note" role="status">
-          {isDead ? (
-            <p className="dead-note">
-              Bitget lists a tokenized {draft.ticker}, but in every check we have made since
-              Tuesday nobody has offered to buy or sell it. You can still price it. The answer
-              will be that only the futures contract is available.
-            </p>
-          ) : (
-            <p className="untracked-note">
-              {draft.ticker} trades too little for us to have been watching it, so we can price
-              it live but cannot tell you anything about the best hour to trade it.
-            </p>
-          )}
-        </div>
-      )}
 
       <div className="control wants">
         <label>It also has to</label>
