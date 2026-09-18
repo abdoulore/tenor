@@ -26,6 +26,7 @@ import outlookData from "./data/outlook.json";
 import {
   IntentControls, EMPTY_DRAFT, isComplete, type Draft, type TickerGroups,
 } from "./IntentControls.tsx";
+import { Receipts } from "./Receipts.tsx";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
 
@@ -250,7 +251,7 @@ export default function App() {
   const [funding, setFunding] = useState<Settlement[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"routes" | "sessions" | "breakeven">("routes");
+  const [tab, setTab] = useState<"routes" | "sessions" | "breakeven" | "receipts">("routes");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   /** Nothing is priced until this is true. */
   const [asked, setAsked] = useState(false);
@@ -481,21 +482,27 @@ export default function App() {
 
       {error && <section className="error"><strong>Cannot price this.</strong> {error}</section>}
 
-      {quote && intent && (
+      <nav className="tabs">
+        <button className={tab === "routes" ? "on" : ""} onClick={() => setTab("routes")} disabled={!quote}>
+          Your options
+        </button>
+        <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")} disabled={!quote}>
+          Best time to trade
+        </button>
+        {quote?.horizonDecides && (
+          <button className={tab === "breakeven" ? "on" : ""} onClick={() => setTab("breakeven")}>
+            How long you hold
+          </button>
+        )}
+        <button className={`right ${tab === "receipts" ? "on" : ""}`} onClick={() => setTab("receipts")}>
+          Track record
+        </button>
+      </nav>
+
+      {tab === "receipts" && <Receipts notional={intent?.notionalUsd ?? 2_000} />}
+
+      {quote && intent && tab !== "receipts" && (
         <>
-          <nav className="tabs">
-            <button className={tab === "routes" ? "on" : ""} onClick={() => setTab("routes")}>
-              Your options
-            </button>
-            <button className={tab === "sessions" ? "on" : ""} onClick={() => setTab("sessions")}>
-              Best time to trade
-            </button>
-            {quote.horizonDecides && (
-              <button className={tab === "breakeven" ? "on" : ""} onClick={() => setTab("breakeven")}>
-                How long you hold
-              </button>
-            )}
-          </nav>
 
           {tab === "routes" && (
             <section className="routes">
