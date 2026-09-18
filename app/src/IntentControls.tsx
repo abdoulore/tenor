@@ -11,9 +11,38 @@
  * your own edit.
  */
 
-import type { Constraints, Direction, Intent } from "../../engine/types.ts";
+import type { Constraints, Direction } from "../../engine/types.ts";
 
-export type FieldOrigin = "read" | "assumed" | "edited";
+/**
+ * A part-filled intent. Nothing is chosen for the user, so every field can be unset and the
+ * controls open on a placeholder rather than on a guess.
+ */
+export interface Draft {
+  ticker: string;
+  notionalUsd: number | null;
+  direction: Direction | null;
+  horizonDays: number | null;
+  constraints: Constraints;
+}
+
+export const EMPTY_DRAFT: Draft = {
+  ticker: "",
+  notionalUsd: null,
+  direction: null,
+  horizonDays: null,
+  constraints: {
+    leverage: 1,
+    needsShort: false,
+    wantsDividends: false,
+    wantsVoting: false,
+    usesAsCollateral: false,
+    needsOffHoursExit: false,
+  },
+};
+
+/** The four things we cannot price without. */
+export const isComplete = (d: Draft): boolean =>
+  Boolean(d.ticker && d.notionalUsd && d.direction && d.horizonDays);
 
 const AMOUNTS = [500, 1_000, 2_000, 5_000, 10_000, 25_000, 50_000, 100_000];
 
@@ -28,20 +57,6 @@ const HOLD_PERIODS: { label: string; days: number }[] = [
 
 const LEVERAGE = [1, 2, 3, 5, 10, 20];
 
-/**
- * Says where a value came from, but only when that is worth saying.
- *
- * Before anyone has typed a sentence every field is a default, so labelling all of them
- * "assumed" is four repetitions of nothing. It only carries information once a sentence has
- * been read, when "assumed" means "you did not mention this, check it".
- */
-function Origin({ origin, showAssumed }: { origin: FieldOrigin; showAssumed: boolean }) {
-  if (origin === "assumed" && !showAssumed) return null;
-  const text =
-    origin === "read" ? "from your words" : origin === "edited" ? "you changed this" : "you did not say";
-  return <span className={`origin ${origin}`}>{text}</span>;
-}
-
 export interface TickerGroups {
   /** Sampled, and the tokenized side actually quotes a price. */
   tradeable: string[];
@@ -52,41 +67,36 @@ export interface TickerGroups {
 }
 
 export function IntentControls({
-  intent,
-  origins,
+  draft,
   groups,
   onChange,
   busy,
-  fromSentence,
 }: {
-  intent: Intent;
-  origins: Record<string, FieldOrigin>;
+  draft: Draft;
   groups: TickerGroups;
-  /** True once a sentence has been read, which is when "you did not say" means something. */
-  fromSentence: boolean;
-  onChange: (patch: Partial<Intent> & { constraints?: Partial<Constraints> }) => void;
+  onChange: (patch: Partial<Draft> & { constraints?: Partial<Constraints> }) => void;
   busy: boolean;
 }) {
-  const isDead = groups.dead.includes(intent.ticker);
-  const isUntracked = groups.untracked.includes(intent.ticker);
+  const isDead = groups.dead.includes(draft.ticker);
+  const isUntracked = groups.untracked.includes(draft.ticker);
   /*
    * A ticker typed into the sentence box can arrive before the listing has loaded, and a
    * select whose value matches no option renders blank. Carry it as its own option so the
    * field always shows what is actually being priced.
    */
-  const known = isDead || isUntracked || groups.tradeable.includes(intent.ticker);
-  const c = intent.constraints;
+  const known = isDead || isUntracked || groups.tradeable.includes(draft.ticker);
+  const c = draft.constraints;
   const setC = (patch: Partial<Constraints>) => onChange({ constraints: patch });
 
   // An amount that is not one of the presets still has to appear in the list, or the select
   // would silently snap the user's number to something they did not choose.
-  const amounts = AMOUNTS.includes(intent.notionalUsd)
-    ? AMOUNTS
-    : [...AMOUNTS, intent.notionalUsd].sort((a, b) => a - b);
-  const periods = HOLD_PERIODS.some((p) => p.days === intent.horizonDays)
-    ? HOLD_PERIODS
-    : [...HOLD_PERIODS, { label: `${intent.horizonDays} days`, days: intent.horizonDays }]
-        .sort((a, b) => a.days - b.days);
+  const amounts = draft.notionalUsd && !AMOUNTS.includes(draft.notionalUsd)
+    ? [...AMOUNTS, draft.notionalUsd].sort((a, b) => a - b)
+    : AMOUNTS;
+  const periods = draft.horizonDays && !HOLD_PERIODS.some((p) => p.days === draft.horizonDays)
+    ? [...HOLD_PERIODS, { label: `${draft.horizonDays} days`, days: draft.horizonDays }]
+        .sort((a, b) => a.days - b.days)
+    : HOLD_PERIODS;
   const levels = LEVERAGE.includes(c.leverage) ? LEVERAGE : [...LEVERAGE, c.leverage].sort((a, b) => a - b);
 
   return (
@@ -102,11 +112,12 @@ export function IntentControls({
         <label htmlFor="f-ticker">Company</label>
         <select
           id="f-ticker"
-          value={intent.ticker}
+          value={draft.ticker}
           disabled={busy}
           onChange={(e) => onChange({ ticker: e.target.value })}
         >
-          {!known && intent.ticker && <option value={intent.ticker}>{intent.ticker}</option>}
+          <option value="" disabled>Choose a company</option>
+          {!known && draft.ticker && <option value={draft.ticker}>{draft.ticker}</option>}
           <optgroup label={`Can be traded (${groups.tradeable.length})`}>
             {groups.tradeable.map((t) => <option key={t} value={t}>{t}</option>)}
           </optgroup>
@@ -117,54 +128,53 @@ export function IntentControls({
             {groups.untracked.map((t) => <option key={t} value={t}>{t} — not tracked</option>)}
           </optgroup>
         </select>
-        <Origin origin={origins.ticker ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
         <label htmlFor="f-amount">How much</label>
         <select
           id="f-amount"
-          value={intent.notionalUsd}
+          value={draft.notionalUsd ?? ""}
           disabled={busy}
           onChange={(e) => onChange({ notionalUsd: Number(e.target.value) })}
         >
+          <option value="" disabled>Choose an amount</option>
           {amounts.map((a) => (
             <option key={a} value={a}>${a.toLocaleString()}</option>
           ))}
         </select>
-        <Origin origin={origins.size ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
         <label htmlFor="f-direction">You think it will</label>
         <select
           id="f-direction"
-          value={intent.direction}
+          value={draft.direction ?? ""}
           disabled={busy}
           onChange={(e) => {
             const direction = e.target.value as Direction;
             onChange({ direction, constraints: { needsShort: direction === "short" } });
           }}
         >
+          <option value="" disabled>Go up or down</option>
           <option value="long">Go up</option>
           <option value="short">Go down</option>
         </select>
-        <Origin origin={origins.direction ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
         <label htmlFor="f-hold">Hold it for</label>
         <select
           id="f-hold"
-          value={intent.horizonDays}
+          value={draft.horizonDays ?? ""}
           disabled={busy}
           onChange={(e) => onChange({ horizonDays: Number(e.target.value) })}
         >
+          <option value="" disabled>Choose how long</option>
           {periods.map((p) => (
             <option key={p.days} value={p.days}>{p.label}</option>
           ))}
         </select>
-        <Origin origin={origins.horizon ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       <div className="control">
@@ -179,20 +189,19 @@ export function IntentControls({
             <option key={l} value={l}>{l === 1 ? "No, just my own money" : `Yes, ${l} times`}</option>
           ))}
         </select>
-        <Origin origin={origins.leverage ?? "assumed"} showAssumed={fromSentence} />
       </div>
 
       {(isDead || isUntracked) && (
         <div className="control picker-note" role="status">
           {isDead ? (
             <p className="dead-note">
-              Bitget lists a tokenized {intent.ticker}, but in every check we have made since
+              Bitget lists a tokenized {draft.ticker}, but in every check we have made since
               Tuesday nobody has offered to buy or sell it. You can still price it. The answer
               will be that only the futures contract is available.
             </p>
           ) : (
             <p className="untracked-note">
-              {intent.ticker} trades too little for us to have been watching it, so we can price
+              {draft.ticker} trades too little for us to have been watching it, so we can price
               it live but cannot tell you anything about the best hour to trade it.
             </p>
           )}

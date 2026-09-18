@@ -23,7 +23,9 @@ import {
 import type { Settlement } from "../../engine/funding.ts";
 import { getParser } from "./parse.ts";
 import outlookData from "./data/outlook.json";
-import { IntentControls, type FieldOrigin, type TickerGroups } from "./IntentControls.tsx";
+import {
+  IntentControls, EMPTY_DRAFT, isComplete, type Draft, type TickerGroups,
+} from "./IntentControls.tsx";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
 
@@ -217,9 +219,23 @@ function RouteCard({
 export default function App() {
   const [text, setText] = useState("$2,000 of NVDA for a month, no leverage");
   const [tickers, setTickers] = useState<string[]>([]);
-  const [intent, setIntent] = useState<Intent | null>(null);
-  /** Where each field's current value came from, so nothing on screen is unexplained. */
-  const [origins, setOrigins] = useState<Record<string, FieldOrigin>>({});
+  /*
+   * A draft, not an intent. Every field starts unset and shows a placeholder, so the page
+   * never puts a choice in front of someone as though they had made it.
+   */
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const intent: Intent | null = useMemo(
+    () => (isComplete(draft)
+      ? {
+          ticker: draft.ticker,
+          notionalUsd: draft.notionalUsd!,
+          direction: draft.direction!,
+          horizonDays: draft.horizonDays!,
+          constraints: draft.constraints,
+        }
+      : null),
+    [draft],
+  );
   const [parseInfo, setParseInfo] = useState<{ parser: string; note?: string } | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [pair, setPair] = useState<Pair | null>(null);
@@ -303,13 +319,14 @@ export default function App() {
         throw new Error("We could not spot a company in that. Name a US stock, for example NVDA or Tesla.");
       }
 
-      const next: Record<string, FieldOrigin> = {};
-      for (const f of ["ticker", "size", "direction", "horizon", "leverage"]) {
-        next[f] = parsed.found.includes(f) ? "read" : "assumed";
-      }
-      setOrigins(next);
       setParseInfo({ parser: parsed.parser, note: parsed.note });
-      setIntent(parsed.intent);
+      setDraft({
+        ticker: parsed.intent.ticker,
+        notionalUsd: parsed.intent.notionalUsd,
+        direction: parsed.intent.direction,
+        horizonDays: parsed.intent.horizonDays,
+        constraints: parsed.intent.constraints,
+      });
 
       const ok = await loadMarket(parsed.intent.ticker, id);
       if (!ok || id !== reqId.current) return;
@@ -330,26 +347,12 @@ export default function App() {
    * gets priced, and the sentence above is only how it started. Changing the company is the
    * one edit that needs fresh prices from Bitget.
    */
-  const edit = useCallback((patch: Partial<Intent> & { constraints?: Partial<Constraints> }) => {
-    setIntent((prev) => {
-      if (!prev) return prev;
-      const next: Intent = {
-        ...prev,
-        ...patch,
-        constraints: { ...prev.constraints, ...(patch.constraints ?? {}) },
-      };
-      return next;
-    });
-
-    setOrigins((prev) => {
-      const out = { ...prev };
-      if (patch.ticker !== undefined) out.ticker = "edited";
-      if (patch.notionalUsd !== undefined) out.size = "edited";
-      if (patch.direction !== undefined) out.direction = "edited";
-      if (patch.horizonDays !== undefined) out.horizon = "edited";
-      if (patch.constraints?.leverage !== undefined) out.leverage = "edited";
-      return out;
-    });
+  const edit = useCallback((patch: Partial<Draft> & { constraints?: Partial<Constraints> }) => {
+    setDraft((prev) => ({
+      ...prev,
+      ...patch,
+      constraints: { ...prev.constraints, ...(patch.constraints ?? {}) },
+    }));
 
     // Before anyone has asked, changing a field just changes the field.
     if (asked && patch.ticker !== undefined && patch.ticker.length >= 1) {
@@ -385,29 +388,9 @@ export default function App() {
     setQuote(q);
   }, [asked, intent, books, pair, funding, session, fellBackAt, now]);
 
-  /*
-   * Seed the controls, price nothing.
-   *
-   * The fields are filled in so the page is immediately usable and shows what it can answer,
-   * but no verdict appears until someone asks for one. Pricing on load would put a
-   * recommendation for a stock nobody mentioned at the top of the page, which reads as advice
-   * rather than as a default.
-   */
-  useEffect(() => {
-    if (intent) return;
-    setIntent({
-      ticker: "NVDA",
-      notionalUsd: 2_000,
-      direction: "long",
-      horizonDays: 30,
-      constraints: { ...DEFAULT_CONSTRAINTS },
-    });
-    setOrigins({ ticker: "assumed", size: "assumed", direction: "assumed", horizon: "assumed", leverage: "assumed" });
-  }, [intent]);
-
   /** Ask. This is the only thing that turns fields into an answer. */
   const priceIt = useCallback(async () => {
-    if (!intent?.ticker) return;
+    if (!intent) return;
     const id = ++reqId.current;
     setStatus("loading");
     setError(null);
@@ -443,16 +426,12 @@ export default function App() {
         </div>
       </header>
 
-      {intent && (
-        <IntentControls
-          intent={intent}
-          origins={origins}
-          groups={tickerGroups}
-          fromSentence={parseInfo !== null}
-          onChange={edit}
-          busy={status === "loading"}
-        />
-      )}
+      <IntentControls
+        draft={draft}
+        groups={tickerGroups}
+        onChange={edit}
+        busy={status === "loading"}
+      />
 
 
       {/*
@@ -485,19 +464,18 @@ export default function App() {
         )}
       </details>
 
-      {intent && (
-        <div className="ask">
-          <button className="primary" onClick={() => void priceIt()} disabled={status === "loading" || !intent.ticker}>
-            {status === "loading" ? "Checking Bitget" : asked ? "Check again" : `Price ${intent.ticker || "it"}`}
-          </button>
-          {!asked && status !== "loading" && (
-            <span className="ask-note">
-              Nothing is priced until you ask. We will read the live prices for both ways of
-              holding {intent.ticker || "it"} and tell you which costs less.
-            </span>
-          )}
-        </div>
-      )}
+      <div className="ask">
+        <button className="primary" onClick={() => void priceIt()} disabled={status === "loading" || !intent}>
+          {status === "loading" ? "Checking Bitget" : asked ? "Check again" : "Price it"}
+        </button>
+        {!asked && status !== "loading" && (
+          <span className="ask-note">
+            {intent
+              ? `We will read the live prices for both ways of holding ${intent.ticker} and tell you which costs less.`
+              : "Fill in the four boxes above and we will compare the ways of holding it."}
+          </span>
+        )}
+      </div>
 
       {parseInfo?.note && <div className="assumed standalone">{parseInfo.note}</div>}
 
