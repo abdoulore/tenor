@@ -214,6 +214,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"routes" | "sessions" | "breakeven">("routes");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  /** Nothing is priced until this is true. */
+  const [asked, setAsked] = useState(false);
   const [now, setNow] = useState(Date.now());
 
   const parser = useMemo(() => getParser(), []);
@@ -287,8 +289,9 @@ export default function App() {
       setParseInfo({ parser: parsed.parser, note: parsed.note });
       setIntent(parsed.intent);
 
-      await loadMarket(parsed.intent.ticker, id);
-      if (id !== reqId.current) return;
+      const ok = await loadMarket(parsed.intent.ticker, id);
+      if (!ok || id !== reqId.current) return;
+      setAsked(true);
       setStatus("idle");
     } catch (e) {
       if (id !== reqId.current) return;
@@ -326,7 +329,8 @@ export default function App() {
       return out;
     });
 
-    if (patch.ticker !== undefined && patch.ticker.length >= 1) {
+    // Before anyone has asked, changing a field just changes the field.
+    if (asked && patch.ticker !== undefined && patch.ticker.length >= 1) {
       const id = ++reqId.current;
       setStatus("loading");
       setError(null);
@@ -339,12 +343,12 @@ export default function App() {
           setQuote(null);
         });
     }
-  }, [loadMarket]);
+  }, [asked, loadMarket]);
 
   // Re-price whenever anything it depends on moves. Pricing is pure and cheap, so this is
   // recomputed rather than cached, which keeps the staleness indicator honest.
   useEffect(() => {
-    if (!intent || !books || !pair) return;
+    if (!asked || !intent || !books || !pair) return;
     const outlook = outlookFor(intent.ticker, nearestSize(intent.notionalUsd));
     const age = fellBackAt !== null ? now - fellBackAt : null;
     const q = priceIntent(intent, {
@@ -357,35 +361,45 @@ export default function App() {
       now,
     });
     setQuote(q);
-  }, [intent, books, pair, funding, session, fellBackAt, now]);
+  }, [asked, intent, books, pair, funding, session, fellBackAt, now]);
 
   /*
-   * Open on a working page rather than a waiting one.
+   * Seed the controls, price nothing.
    *
-   * The controls are seeded with a plain default and priced straight away. Nothing here
-   * calls the parser, so the page is fully usable whether or not the AI endpoint is
-   * reachable, and the first thing a visitor sees is an answer rather than a spinner.
+   * The fields are filled in so the page is immediately usable and shows what it can answer,
+   * but no verdict appears until someone asks for one. Pricing on load would put a
+   * recommendation for a stock nobody mentioned at the top of the page, which reads as advice
+   * rather than as a default.
    */
   useEffect(() => {
     if (intent) return;
-    const seed: Intent = {
+    setIntent({
       ticker: "NVDA",
       notionalUsd: 2_000,
       direction: "long",
       horizonDays: 30,
       constraints: { ...DEFAULT_CONSTRAINTS },
-    };
-    setIntent(seed);
+    });
     setOrigins({ ticker: "assumed", size: "assumed", direction: "assumed", horizon: "assumed", leverage: "assumed" });
+  }, [intent]);
+
+  /** Ask. This is the only thing that turns fields into an answer. */
+  const priceIt = useCallback(async () => {
+    if (!intent?.ticker) return;
     const id = ++reqId.current;
     setStatus("loading");
-    loadMarket(seed.ticker, id)
-      .then((ok) => { if (ok) setStatus("idle"); })
-      .catch((e) => {
-        if (id !== reqId.current) return;
-        setError((e as Error).message);
-        setStatus("error");
-      });
+    setError(null);
+    try {
+      const ok = await loadMarket(intent.ticker, id);
+      if (!ok || id !== reqId.current) return;
+      setAsked(true);
+      setStatus("idle");
+    } catch (e) {
+      if (id !== reqId.current) return;
+      setError((e as Error).message);
+      setStatus("error");
+      setQuote(null);
+    }
   }, [intent, loadMarket]);
 
   const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.notionalUsd)) : null;
@@ -446,6 +460,20 @@ export default function App() {
           </p>
         )}
       </details>
+
+      {intent && (
+        <div className="ask">
+          <button className="primary" onClick={() => void priceIt()} disabled={status === "loading" || !intent.ticker}>
+            {status === "loading" ? "Checking Bitget" : asked ? "Check again" : `Price ${intent.ticker || "it"}`}
+          </button>
+          {!asked && status !== "loading" && (
+            <span className="ask-note">
+              Nothing is priced until you ask. We will read the live prices for both ways of
+              holding {intent.ticker || "it"} and tell you which costs less.
+            </span>
+          )}
+        </div>
+      )}
 
       {parseInfo?.note && <div className="assumed standalone">{parseInfo.note}</div>}
 

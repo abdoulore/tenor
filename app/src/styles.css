@@ -282,3 +282,13 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .shortcut .intent { margin: 8px 0 0; }
 .shortcut .intent textarea { font-size: 15px; }
 .shortcut-note { margin: 10px 0 0; font-size: 13px; color: var(--dim); }
+
+/* Nothing is answered until it is asked. This is the asking. */
+.ask { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 0 0 20px; }
+.ask .primary {
+  background: var(--good); color: #06240f; border: 0; border-radius: 10px;
+  padding: 13px 28px; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.ask .primary:hover { filter: brightness(1.08); }
+.ask .primary:disabled { opacity: 0.45; cursor: default; filter: none; }
+.ask-note { font-size: 13px; color: var(--dim); max-width: 460px; line-height: 1.45; }
