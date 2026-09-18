@@ -177,8 +177,16 @@ export function IntentControls({
         </select>
       </div>
 
+      {/*
+        * Leverage, said in dollars.
+        *
+        * "Borrow to boost it: yes, 2 times" does not say what is doubled, and a multiplier
+        * on its own is meaningless without the amount beside it. Spelling out the exposure
+        * it buys makes the choice concrete, and the note below makes its consequence visible
+        * before pricing rather than as a rejection afterwards.
+        */}
       <div className="control">
-        <label htmlFor="f-leverage">Borrow to boost it</label>
+        <label htmlFor="f-leverage">Borrow to trade bigger</label>
         <select
           id="f-leverage"
           value={c.leverage}
@@ -186,9 +194,22 @@ export function IntentControls({
           onChange={(e) => setC({ leverage: Number(e.target.value) })}
         >
           {levels.map((l) => (
-            <option key={l} value={l}>{l === 1 ? "No, just my own money" : `Yes, ${l} times`}</option>
+            <option key={l} value={l}>
+              {l === 1
+                ? "No, just my own money"
+                : draft.notionalUsd
+                  ? `Yes, control $${(draft.notionalUsd * l).toLocaleString()} with my $${draft.notionalUsd.toLocaleString()}`
+                  : `Yes, ${l} times my money`}
+            </option>
           ))}
         </select>
+        {c.leverage > 1 && (
+          <p className="fieldnote">
+            Borrowing {c.leverage} times means a {(100 / c.leverage).toFixed(0)}% move against you
+            wipes out your stake. Only the futures contract can do this; the tokenized stock is
+            bought outright with your own money.
+          </p>
+        )}
       </div>
 
       {(isDead || isUntracked) && (

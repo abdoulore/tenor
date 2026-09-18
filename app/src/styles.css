@@ -402,3 +402,7 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .pos-msg.dim { color: var(--dim); font-size: 13px; }
 .pos-sums { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
 .pos-sums .band { color: var(--dim); font-size: 12px; width: 100%; }
+
+.fieldnote {
+  margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--warn);
+}
