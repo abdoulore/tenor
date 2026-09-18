@@ -191,8 +191,13 @@ export function IntentControls({
         </select>
       </div>
 
+      {/*
+        * Eligibility, not preferences. Ticking one of these removes any route that cannot do
+        * it, before price is considered at all, so the heading has to say that. "It also has
+        * to" described the requirement without describing the consequence.
+        */}
       <div className="control wants">
-        <label>It also has to</label>
+        <label>Rule out anything that cannot</label>
         <div className="checks">
           <label className="check">
             <input
