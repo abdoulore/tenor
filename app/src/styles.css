@@ -268,3 +268,17 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 @media (max-width: 620px) {
   .controls { grid-template-columns: 1fr; }
 }
+
+/* The sentence box, demoted. It fills the controls; it is not the controls. */
+.shortcut { margin: -8px 0 20px; }
+.shortcut > summary {
+  cursor: pointer; font-size: 14px; color: var(--muted);
+  padding: 8px 0; list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.shortcut > summary::-webkit-details-marker { display: none; }
+.shortcut > summary::before { content: "+"; color: var(--dim); font-family: var(--mono); }
+.shortcut[open] > summary::before { content: "−"; }
+.shortcut > summary:hover { color: var(--text); }
+.shortcut .intent { margin: 8px 0 0; }
+.shortcut .intent textarea { font-size: 15px; }
+.shortcut-note { margin: 10px 0 0; font-size: 13px; color: var(--dim); }

@@ -15,8 +15,10 @@ import { sessionLabel } from "../../engine/book.ts";
 import { DEFAULT_FEES, roundTripFeeBp } from "../../engine/fees.ts";
 import { ROUTE_BLURBS } from "../../engine/eligibility.ts";
 import { crossoverDays } from "../../engine/funding.ts";
-import type {
-  Book, Constraints, Intent, Quote, RouteResult, Session, SessionOutlook,
+import {
+  DEFAULT_CONSTRAINTS,
+  type Book, type Constraints, type Intent, type Quote, type RouteResult,
+  type Session, type SessionOutlook,
 } from "../../engine/types.ts";
 import type { Settlement } from "../../engine/funding.ts";
 import { getParser } from "./parse.ts";
@@ -357,7 +359,34 @@ export default function App() {
     setQuote(q);
   }, [intent, books, pair, funding, session, fellBackAt, now]);
 
-  useEffect(() => { if (tickers.length) void run(); /* first paint once tickers land */ }, [tickers.length]);
+  /*
+   * Open on a working page rather than a waiting one.
+   *
+   * The controls are seeded with a plain default and priced straight away. Nothing here
+   * calls the parser, so the page is fully usable whether or not the AI endpoint is
+   * reachable, and the first thing a visitor sees is an answer rather than a spinner.
+   */
+  useEffect(() => {
+    if (intent) return;
+    const seed: Intent = {
+      ticker: "NVDA",
+      notionalUsd: 2_000,
+      direction: "long",
+      horizonDays: 30,
+      constraints: { ...DEFAULT_CONSTRAINTS },
+    };
+    setIntent(seed);
+    setOrigins({ ticker: "assumed", size: "assumed", direction: "assumed", horizon: "assumed", leverage: "assumed" });
+    const id = ++reqId.current;
+    setStatus("loading");
+    loadMarket(seed.ticker, id)
+      .then((ok) => { if (ok) setStatus("idle"); })
+      .catch((e) => {
+        if (id !== reqId.current) return;
+        setError((e as Error).message);
+        setStatus("error");
+      });
+  }, [intent, loadMarket]);
 
   const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.notionalUsd)) : null;
   const coverage = (outlookData as OutlookFile).coverage;
@@ -377,20 +406,6 @@ export default function App() {
         </div>
       </header>
 
-      <section className="intent">
-        <textarea
-          aria-label="Describe what you want to do"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void run(); }}
-          rows={2}
-          placeholder="$2,000 of NVDA for a month, no leverage"
-        />
-        <button onClick={() => void run()} disabled={status === "loading"}>
-          {status === "loading" ? "Reading" : "Read this"}
-        </button>
-      </section>
-
       {intent && (
         <IntentControls
           intent={intent}
@@ -400,6 +415,37 @@ export default function App() {
           busy={status === "loading"}
         />
       )}
+
+
+      {/*
+        * The sentence is a shortcut now, not the way you drive this. The controls above are
+        * the intent, so this sits underneath as a faster way to fill them in when someone
+        * would rather type than click. Kept because typing "20k of palantir for three months
+        * at 3x" really is quicker than setting five fields.
+        */}
+      <details className="shortcut">
+        <summary>Or describe it in a sentence</summary>
+        <div className="intent">
+          <textarea
+            aria-label="Describe what you want to do"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void run(); }}
+            rows={2}
+            placeholder="20k of palantir for three months at 3x"
+          />
+          <button onClick={() => void run()} disabled={status === "loading"}>
+            {status === "loading" ? "Reading" : "Fill the fields"}
+          </button>
+        </div>
+        {parseInfo && (
+          <p className="shortcut-note">
+            {parseInfo.parser === "model" ? "Read by AI." : "Read by simple rules."} It only fills
+            the fields above. Every number you see is worked out from live Bitget prices, not written
+            by the AI.
+          </p>
+        )}
+      </details>
 
       {parseInfo?.note && <div className="assumed standalone">{parseInfo.note}</div>}
 
