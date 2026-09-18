@@ -33,19 +33,36 @@ function Origin({ origin }: { origin: FieldOrigin }) {
   return <span className={`origin ${origin}`}>{text}</span>;
 }
 
+export interface TickerGroups {
+  /** Sampled, and the tokenized side actually quotes a price. */
+  tradeable: string[];
+  /** Sampled continuously and never quoted once. Listed, but there is no market. */
+  dead: string[];
+  /** Has both legs on Bitget but falls below the volume floor, so we have no history. */
+  untracked: string[];
+}
+
 export function IntentControls({
   intent,
   origins,
-  tickers,
+  groups,
   onChange,
   busy,
 }: {
   intent: Intent;
   origins: Record<string, FieldOrigin>;
-  tickers: string[];
+  groups: TickerGroups;
   onChange: (patch: Partial<Intent> & { constraints?: Partial<Constraints> }) => void;
   busy: boolean;
 }) {
+  const isDead = groups.dead.includes(intent.ticker);
+  const isUntracked = groups.untracked.includes(intent.ticker);
+  /*
+   * A ticker typed into the sentence box can arrive before the listing has loaded, and a
+   * select whose value matches no option renders blank. Carry it as its own option so the
+   * field always shows what is actually being priced.
+   */
+  const known = isDead || isUntracked || groups.tradeable.includes(intent.ticker);
   const c = intent.constraints;
   const setC = (patch: Partial<Constraints>) => onChange({ constraints: patch });
 
@@ -62,21 +79,32 @@ export function IntentControls({
 
   return (
     <section className="controls" aria-label="What you are pricing">
+      {/*
+        * Every company Bitget lists is offered, grouped by whether it can actually be traded.
+        * Hiding the dead ones would hide the strongest thing we found: Bitget lists a
+        * tokenized Netflix, McDonald's and Exxon, and not one of them has ever had a buyer or
+        * seller while we have been watching. Someone who picks one should meet that as an
+        * answer, not as a broken page.
+        */}
       <div className="control">
         <label htmlFor="f-ticker">Company</label>
-        <input
+        <select
           id="f-ticker"
-          list="ticker-list"
           value={intent.ticker}
           disabled={busy}
-          onChange={(e) => onChange({ ticker: e.target.value.toUpperCase().trim() })}
-          placeholder="NVDA"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <datalist id="ticker-list">
-          {tickers.map((t) => <option key={t} value={t} />)}
-        </datalist>
+          onChange={(e) => onChange({ ticker: e.target.value })}
+        >
+          {!known && intent.ticker && <option value={intent.ticker}>{intent.ticker}</option>}
+          <optgroup label={`Can be traded (${groups.tradeable.length})`}>
+            {groups.tradeable.map((t) => <option key={t} value={t}>{t}</option>)}
+          </optgroup>
+          <optgroup label={`Listed, but nobody trades them (${groups.dead.length})`}>
+            {groups.dead.map((t) => <option key={t} value={t}>{t} — no market</option>)}
+          </optgroup>
+          <optgroup label={`Too small for us to have watched (${groups.untracked.length})`}>
+            {groups.untracked.map((t) => <option key={t} value={t}>{t} — not tracked</option>)}
+          </optgroup>
+        </select>
         <Origin origin={origins.ticker ?? "assumed"} />
       </div>
 
@@ -141,6 +169,23 @@ export function IntentControls({
         </select>
         <Origin origin={origins.leverage ?? "assumed"} />
       </div>
+
+      {(isDead || isUntracked) && (
+        <div className="control picker-note" role="status">
+          {isDead ? (
+            <p className="dead-note">
+              Bitget lists a tokenized {intent.ticker}, but in every check we have made since
+              Tuesday nobody has offered to buy or sell it. You can still price it. The answer
+              will be that only the futures contract is available.
+            </p>
+          ) : (
+            <p className="untracked-note">
+              {intent.ticker} trades too little for us to have been watching it, so we can price
+              it live but cannot tell you anything about the best hour to trade it.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="control wants">
         <label>It also has to</label>

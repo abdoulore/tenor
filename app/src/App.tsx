@@ -23,7 +23,7 @@ import {
 import type { Settlement } from "../../engine/funding.ts";
 import { getParser } from "./parse.ts";
 import outlookData from "./data/outlook.json";
-import { IntentControls, type FieldOrigin } from "./IntentControls.tsx";
+import { IntentControls, type FieldOrigin, type TickerGroups } from "./IntentControls.tsx";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
 
@@ -78,6 +78,28 @@ const usd = (bp: number, notional: number) => {
 /** The same number as a percentage of the position, for the people who prefer it. */
 const pctOf = (bp: number | null | undefined) =>
   bp === null || bp === undefined ? "n/a" : `${(bp / 100).toFixed(3)}%`;
+
+/**
+ * Split everything Bitget lists into what can be traded, what is listed but dead, and what
+ * we have never watched.
+ *
+ * "Dead" means sampled every five minutes since Tuesday with the tokenized side empty on
+ * every single check. Bitget lists a tokenized Netflix, McDonald's and Exxon; none of them
+ * has had a quote once.
+ */
+function groupTickers(live: string[]): TickerGroups {
+  const entries = (outlookData as OutlookFile).tickers as Record<
+    string, { rtoken?: Record<string, { emptyShare: number }> }
+  >;
+  const watched = Object.keys(entries);
+  const quotes = (t: string) =>
+    Object.values(entries[t]?.rtoken ?? {}).some((sess) => sess.emptyShare < 1);
+
+  const tradeable = watched.filter(quotes).sort();
+  const dead = watched.filter((t) => !quotes(t)).sort();
+  const untracked = live.filter((t) => !watched.includes(t)).sort();
+  return { tradeable, dead, untracked };
+}
 
 const fmtBp = (x: number | null | undefined, dp = 2) =>
   x === null || x === undefined ? "n/a" : `${x.toFixed(dp)}bp`;
@@ -402,6 +424,7 @@ export default function App() {
     }
   }, [intent, loadMarket]);
 
+  const tickerGroups = useMemo(() => groupTickers(tickers), [tickers]);
   const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.notionalUsd)) : null;
   const coverage = (outlookData as OutlookFile).coverage;
 
@@ -424,7 +447,7 @@ export default function App() {
         <IntentControls
           intent={intent}
           origins={origins}
-          tickers={tickers}
+          groups={tickerGroups}
           onChange={edit}
           busy={status === "loading"}
         />

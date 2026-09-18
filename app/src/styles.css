@@ -292,3 +292,10 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .ask .primary:hover { filter: brightness(1.08); }
 .ask .primary:disabled { opacity: 0.45; cursor: default; filter: none; }
 .ask-note { font-size: 13px; color: var(--dim); max-width: 460px; line-height: 1.45; }
+
+.picker-note { grid-column: 1 / -1; }
+.picker-note p { margin: 0; font-size: 13px; line-height: 1.5; padding: 10px 12px; border-radius: 8px; }
+.dead-note { color: var(--dead); background: rgba(239,95,95,0.08); border-left: 2px solid var(--dead); }
+.untracked-note { color: var(--warn); background: rgba(232,178,58,0.08); border-left: 2px solid var(--warn); }
+.control optgroup { background: var(--bg); color: var(--dim); font-style: normal; }
+.control option { background: var(--panel-2); color: var(--text); }
