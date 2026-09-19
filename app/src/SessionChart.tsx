@@ -156,12 +156,12 @@ export function SessionChart({
 
   return (
     <section className="chart">
-      <h2>The same trade costs different amounts at different hours</h2>
+      <h2>What it costs to trade {ticker}, hour by hour</h2>
       <p className="sub">
-        What you lose to the gap between buying and selling price, on ${size.toLocaleString()},
-        typical across every check we have made. Fees and funding are not in
-        this chart, only the cost of getting in and back out.
+        The round trip on ${size.toLocaleString()}: what you lose to the spread getting in and
+        back out. Fees and funding are not in this chart.
       </p>
+      {takeaway && <p className="takeaway">{takeaway}</p>}
 
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="What it costs to buy and sell at each time of day">
         {tickValues.map((v) => (
