@@ -451,3 +451,10 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 }
 .amount input:focus { outline: none; }
 
+
+/* The sentence the session chart exists to deliver. */
+.takeaway {
+  margin: 0 0 16px; padding: 11px 14px; font-size: 15px; line-height: 1.5;
+  color: var(--text); background: var(--panel-2);
+  border-left: 2px solid var(--rtoken); border-radius: 0 8px 8px 0;
+}

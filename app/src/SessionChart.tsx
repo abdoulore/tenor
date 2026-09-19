@@ -41,10 +41,12 @@ export function SessionChart({
   outlook,
   current,
   size,
+  ticker,
 }: {
   outlook: Record<"rtoken" | "perp" | "stockplus", SessionOutlook[]>;
   current: Session;
   size: number;
+  ticker: string;
 }) {
   // Dollars on the amount asked about, because a basis point means nothing to most people.
   const money = (bp: number) => {
@@ -83,6 +85,70 @@ export function SessionChart({
   const innerH = H - PAD.top - PAD.bottom;
   const x = (i: number) => PAD.left + (innerW / (SESSIONS.length - 1)) * i;
   const y = (v: number) => PAD.top + innerH - (v / max) * innerH;
+
+  /*
+   * The sentence the chart is for.
+   *
+   * It is computed rather than asserted, because the honest conclusion differs by ticker.
+   * NVDA ranges from $1.28 to $1.50 across the day, which is nearly flat, while ABNB swings
+   * twelvefold. A fixed headline claiming the hour matters would be wrong on the first and
+   * wasted on the second.
+   */
+  const takeaway = (() => {
+    const priced = series.map((ser) => ({
+      route: ser.route,
+      label: ser.route === "rtoken" ? "tokenized stock" : "perpetual",
+      vals: ser.points.map((p) => p.bp).filter((v): v is number => v !== null),
+      byBest: [...ser.points].filter((p) => p.bp !== null).sort((a, b) => a.bp! - b.bp!),
+    })).filter((ser) => ser.vals.length >= 2);
+    if (!priced.length) return null;
+
+    const parts: string[] = [];
+
+    // Does the hour actually matter for this ticker, and by how much.
+    const swings = priced.map((ser) => {
+      const lo = Math.min(...ser.vals);
+      const hi = Math.max(...ser.vals);
+      return { ...ser, lo, hi, ratio: lo > 0 ? hi / lo : 1 };
+    }).sort((a, b) => b.ratio - a.ratio);
+    const worst = swings[0];
+
+    if (worst.ratio >= 1.4) {
+      const best = worst.byBest[0];
+      const dear = worst.byBest[worst.byBest.length - 1];
+      parts.push(
+        `The hour matters here: the ${worst.label} costs ${money(dear.bp!)} ` +
+        `${LABELS[dear.session].toLowerCase()} against ${money(best.bp!)} ${LABELS[best.session].toLowerCase()}, ` +
+        `${worst.ratio.toFixed(1)} times as much.`,
+      );
+    } else {
+      parts.push(
+        `The hour barely matters for ${ticker}: everything sits between ` +
+        `${money(Math.min(...priced.flatMap((p) => p.vals)))} and ` +
+        `${money(Math.max(...priced.flatMap((p) => p.vals)))}.`,
+      );
+    }
+
+    // Which one is cheaper, and whether that ever changes.
+    if (priced.length === 2) {
+      const [a, b] = priced;
+      const aWins = a.points ?? null;
+      let aCheaper = 0;
+      let bCheaper = 0;
+      for (const sess of SESSIONS) {
+        const av = series[0].points.find((p) => p.session === sess)?.bp;
+        const bv = series[1].points.find((p) => p.session === sess)?.bp;
+        if (av === null || bv === null || av === undefined || bv === undefined) continue;
+        if (av < bv) aCheaper++; else if (bv < av) bCheaper++;
+      }
+      void aWins;
+      if (aCheaper && !bCheaper) parts.push(`The ${a.label} is cheaper to trade at every hour we measured.`);
+      else if (bCheaper && !aCheaper) parts.push(`The ${b.label} is cheaper to trade at every hour we measured.`);
+      else if (aCheaper && bCheaper) parts.push(`Which is cheaper to trade changes with the hour.`);
+    }
+
+    return parts.join(" ");
+  })();
 
   const tickValues: number[] = [];
   for (let v = 0; v <= max + 1e-9; v += step) tickValues.push(v);
@@ -155,7 +221,13 @@ export function SessionChart({
         })}
 
         {SESSIONS.map((s, i) => (
-          <text key={s} x={x(i)} y={H - 22} className={`xlabel ${s === current ? "on" : ""}`} textAnchor="middle">
+          <text
+            key={s}
+            x={x(i)}
+            y={H - 22}
+            className={`xlabel ${s === current ? "on" : ""}`}
+            textAnchor={i === 0 ? "start" : i === SESSIONS.length - 1 ? "end" : "middle"}
+          >
             {LABELS[s]}
           </text>
         ))}

@@ -562,7 +562,7 @@ export default function App() {
           )}
 
           {tab === "sessions" && outlook && (
-            <SessionChart outlook={outlook} current={session} size={nearestSize(intent.notionalUsd)} />
+            <SessionChart outlook={outlook} current={session} size={nearestSize(intent.notionalUsd)} ticker={intent.ticker} />
           )}
 
           {tab === "breakeven" && (
