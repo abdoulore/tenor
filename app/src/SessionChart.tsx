@@ -210,7 +210,14 @@ export function SessionChart({
                 ) : (
                   <g key={i}>
                     <circle cx={x(i)} cy={y(p.bp)} r={6} className="dot" />
-                    <text x={x(i)} y={y(p.bp) - 14} className="value" textAnchor="middle">
+                    {/* Edge values anchor inward too, or the first one collides with the
+                        axis label sitting a few pixels to its left. */}
+                    <text
+                      x={x(i)}
+                      y={y(p.bp) - 14}
+                      className="value"
+                      textAnchor={i === 0 ? "start" : i === s.points.length - 1 ? "end" : "middle"}
+                    >
                       {money(p.bp)}
                     </text>
                   </g>
