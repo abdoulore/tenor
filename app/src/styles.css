@@ -451,10 +451,3 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 }
 .amount input:focus { outline: none; }
 
-.quickpicks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.quickpicks button {
-  background: none; border: 1px solid var(--line); border-radius: 20px;
-  color: var(--dim); padding: 3px 9px; font-size: 11px; font-family: var(--mono); cursor: pointer;
-}
-.quickpicks button:hover { color: var(--text); border-color: var(--muted); }
-.quickpicks button.on { color: var(--bg); background: var(--text); border-color: var(--text); }

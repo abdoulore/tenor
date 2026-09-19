@@ -45,7 +45,6 @@ export const EMPTY_DRAFT: Draft = {
 export const isComplete = (d: Draft): boolean =>
   Boolean(d.ticker && d.notionalUsd && d.direction && d.horizonDays);
 
-const AMOUNTS = [500, 1_000, 2_000, 5_000, 10_000, 25_000, 50_000, 100_000];
 
 const HOLD_PERIODS: { label: string; days: number }[] = [
   { label: "A day", days: 1 },
@@ -143,19 +142,6 @@ export function IntentControls({
               onChange({ notionalUsd: digits === "" || !Number.isFinite(n) || n <= 0 ? null : n });
             }}
           />
-        </div>
-        <div className="quickpicks">
-          {AMOUNTS.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className={draft.notionalUsd === a ? "on" : ""}
-              disabled={busy}
-              onClick={() => onChange({ notionalUsd: a })}
-            >
-              ${a >= 1000 ? `${a / 1000}k` : a}
-            </button>
-          ))}
         </div>
       </div>
 
