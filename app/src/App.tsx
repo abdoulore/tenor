@@ -376,7 +376,7 @@ export default function App() {
   // recomputed rather than cached, which keeps the staleness indicator honest.
   useEffect(() => {
     if (!asked || !intent || !books || !pair) return;
-    const outlook = outlookFor(intent.ticker, nearestSize(intent.notionalUsd));
+    const outlook = outlookFor(intent.ticker, nearestSize(intent.ticker, intent.notionalUsd));
     const age = fellBackAt !== null ? now - fellBackAt : null;
     const q = priceIntent(intent, {
       session,
@@ -410,7 +410,7 @@ export default function App() {
   }, [intent, loadMarket]);
 
   const tickerGroups = useMemo(() => groupTickers(tickers), [tickers]);
-  const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.notionalUsd)) : null;
+  const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.ticker, intent.notionalUsd)) : null;
   const coverage = (outlookData as OutlookFile).coverage;
 
   return (
@@ -565,7 +565,7 @@ export default function App() {
             <SessionChart
               outlook={outlook}
               current={session}
-              size={nearestSize(intent.notionalUsd)}
+              size={nearestSize(intent.ticker, intent.notionalUsd)}
               requested={intent.notionalUsd}
               ticker={intent.ticker}
             />
@@ -694,13 +694,27 @@ function decisionGap(quote: Quote): number | null {
 }
 
 /**
- * The session chart can only show sizes the sampler actually walked.
+ * The session chart can only show sizes the sampler actually walked, for this ticker.
  *
- * Interpolating between them would invent a measurement, so the request snaps to the nearest
- * real one and the chart says when that is not what was asked for. Live pricing always uses
- * the exact amount; this is only about the historical medians.
+ * Both parts matter. Interpolating between measured sizes would invent a number, and picking
+ * the arithmetically nearest size regardless of coverage empties the chart: $500 and $50,000
+ * were added late, so a $1,000 request snapped to $500 and found nothing, on a ticker with
+ * four days of history at $2,000.
+ *
+ * So: nearest among the sizes that actually have data for this ticker. Live pricing always
+ * uses the exact amount; this is only about the historical medians.
  */
-function nearestSize(n: number): number {
-  const available = (outlookData as OutlookFile).sizes ?? SIZES;
-  return available.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+function nearestSize(ticker: string, n: number): number {
+  const file = outlookData as OutlookFile;
+  const entry = (file.tickers as Record<string, Record<string, Record<string, { bp: Record<string, number | null> }>>>)[ticker];
+  const covered = (file.sizes ?? SIZES).filter((size) => {
+    for (const route of ["rtoken", "perp"]) {
+      for (const sess of Object.values(entry?.[route] ?? {})) {
+        if (typeof sess?.bp?.[String(size)] === "number") return true;
+      }
+    }
+    return false;
+  });
+  const pool = covered.length ? covered : (file.sizes ?? SIZES);
+  return pool.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
 }
