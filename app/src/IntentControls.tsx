@@ -11,6 +11,7 @@
  * your own edit.
  */
 
+import { Combobox, type ComboGroup } from "./Combobox.tsx";
 import type { Constraints, Direction } from "../../engine/types.ts";
 
 /**
@@ -85,14 +86,17 @@ export function IntentControls({
    * field always shows what is actually being priced.
    */
   const known = isDead || isUntracked || groups.tradeable.includes(draft.ticker);
+
+  const comboGroups: ComboGroup[] = [
+    { label: `Can be traded (${groups.tradeable.length})`, items: groups.tradeable },
+    { label: `Listed, but nobody trades them (${groups.dead.length})`, items: groups.dead, suffix: "no market", tone: "dead" },
+    { label: `Too small for us to have watched (${groups.untracked.length})`, items: groups.untracked, suffix: "not tracked", tone: "warn" },
+  ];
   const c = draft.constraints;
   const setC = (patch: Partial<Constraints>) => onChange({ constraints: patch });
 
   // An amount that is not one of the presets still has to appear in the list, or the select
   // would silently snap the user's number to something they did not choose.
-  const amounts = draft.notionalUsd && !AMOUNTS.includes(draft.notionalUsd)
-    ? [...AMOUNTS, draft.notionalUsd].sort((a, b) => a - b)
-    : AMOUNTS;
   const periods = draft.horizonDays && !HOLD_PERIODS.some((p) => p.days === draft.horizonDays)
     ? [...HOLD_PERIODS, { label: `${draft.horizonDays} days`, days: draft.horizonDays }]
         .sort((a, b) => a.days - b.days)
@@ -110,39 +114,49 @@ export function IntentControls({
         */}
       <div className="control">
         <label htmlFor="f-ticker">Company</label>
-        <select
+        <Combobox
           id="f-ticker"
           value={draft.ticker}
           disabled={busy}
-          onChange={(e) => onChange({ ticker: e.target.value })}
-        >
-          <option value="" disabled>Choose a company</option>
-          {!known && draft.ticker && <option value={draft.ticker}>{draft.ticker}</option>}
-          <optgroup label={`Can be traded (${groups.tradeable.length})`}>
-            {groups.tradeable.map((t) => <option key={t} value={t}>{t}</option>)}
-          </optgroup>
-          <optgroup label={`Listed, but nobody trades them (${groups.dead.length})`}>
-            {groups.dead.map((t) => <option key={t} value={t}>{t} — no market</option>)}
-          </optgroup>
-          <optgroup label={`Too small for us to have watched (${groups.untracked.length})`}>
-            {groups.untracked.map((t) => <option key={t} value={t}>{t} — not tracked</option>)}
-          </optgroup>
-        </select>
+          placeholder="Type a ticker"
+          onChange={(t) => onChange({ ticker: t })}
+          groups={comboGroups}
+        />
       </div>
 
       <div className="control">
         <label htmlFor="f-amount">How much</label>
-        <select
-          id="f-amount"
-          value={draft.notionalUsd ?? ""}
-          disabled={busy}
-          onChange={(e) => onChange({ notionalUsd: Number(e.target.value) })}
-        >
-          <option value="" disabled>Choose an amount</option>
-          {amounts.map((a) => (
-            <option key={a} value={a}>${a.toLocaleString()}</option>
+        <div className="amount">
+          <span className="prefix">$</span>
+          <input
+            id="f-amount"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            disabled={busy}
+            value={draft.notionalUsd === null ? "" : draft.notionalUsd.toLocaleString()}
+            placeholder="Amount"
+            onChange={(e) => {
+              // Accept what people actually type: commas, spaces, a stray dollar sign.
+              const digits = e.target.value.replace(/[^\d.]/g, "");
+              const n = Number(digits);
+              onChange({ notionalUsd: digits === "" || !Number.isFinite(n) || n <= 0 ? null : n });
+            }}
+          />
+        </div>
+        <div className="quickpicks">
+          {AMOUNTS.map((a) => (
+            <button
+              key={a}
+              type="button"
+              className={draft.notionalUsd === a ? "on" : ""}
+              disabled={busy}
+              onClick={() => onChange({ notionalUsd: a })}
+            >
+              ${a >= 1000 ? `${a / 1000}k` : a}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
       <div className="control">

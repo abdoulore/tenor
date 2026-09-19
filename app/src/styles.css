@@ -406,3 +406,55 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .fieldnote {
   margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--warn);
 }
+
+/* ---------------------------------------------------------------- combobox */
+
+.combo { position: relative; }
+.combo input {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; font-size: 15px; font-family: var(--sans); width: 100%;
+}
+.combo input:focus { outline: none; border-color: var(--rtoken); }
+.combo input:disabled { opacity: 0.55; }
+
+.combo-list {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: 320px; overflow-y: auto; margin: 0; padding: 4px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+  list-style: none; box-shadow: 0 14px 34px rgba(0,0,0,0.55);
+}
+.combo-list ul { list-style: none; margin: 0; padding: 0; }
+.combo-group + .combo-group { margin-top: 6px; }
+.combo-glabel {
+  display: block; padding: 6px 10px 4px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--dim);
+}
+.combo-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
+  border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.combo-item.active { background: rgba(106,169,255,0.16); }
+.combo-name { font-family: var(--mono); }
+.combo-suffix { margin-left: auto; font-size: 11px; color: var(--dim); }
+.combo-item.dead .combo-suffix { color: var(--dead); }
+.combo-item.warn .combo-suffix { color: var(--warn); }
+.combo-empty { padding: 12px 10px; color: var(--muted); font-size: 14px; }
+
+/* ---------------------------------------------------------------- amount */
+
+.amount { display: flex; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; }
+.amount:focus-within { border-color: var(--rtoken); }
+.amount .prefix { padding: 0 2px 0 12px; color: var(--dim); font-size: 15px; }
+.amount input {
+  flex: 1; min-width: 0; background: none; border: 0; color: var(--text);
+  padding: 10px 12px 10px 4px; font-size: 15px; font-family: var(--sans); width: 100%;
+}
+.amount input:focus { outline: none; }
+
+.quickpicks { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.quickpicks button {
+  background: none; border: 1px solid var(--line); border-radius: 20px;
+  color: var(--dim); padding: 3px 9px; font-size: 11px; font-family: var(--mono); cursor: pointer;
+}
+.quickpicks button:hover { color: var(--text); border-color: var(--muted); }
+.quickpicks button.on { color: var(--bg); background: var(--text); border-color: var(--text); }
