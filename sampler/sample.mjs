@@ -2,10 +2,9 @@
 /**
  * Tenor spread sampler
  *
- * Orderbook history cannot be backfilled, so this runs continuously from now until
- * submission. Every cycle it pulls both legs of every tradeable ticker, records the
- * spread and what it actually costs to fill $2,000 and $10,000, and appends one NDJSON
- * line per ticker per cycle.
+ * Orderbook history cannot be backfilled, so this runs continuously. Every cycle it pulls
+ * both legs of every tradeable ticker, records the spread and what it actually costs to fill
+ * each size in FILL_SIZES_USD, and appends one NDJSON line per ticker per cycle.
  *
  * Endpoint: GET /api/v3/market/orderbook?category={SPOT|USDT-FUTURES}&symbol=&limit=150
  * One shape serves both legs. Levels come back as {a: [[price, qty]], b: [...], ts}.

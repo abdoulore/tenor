@@ -2,8 +2,8 @@
  * Book walking for the engine.
  *
  * This deliberately calls the sampler's own `walk` and `levels` rather than
- * reimplementing them. Kill condition 1 in the plan is the engine failing to reproduce the
- * sampler's numbers, and the cheapest way to never fail it is to run the same code.
+ * reimplementing them. The engine must reproduce the sampler's numbers exactly, and the
+ * cheapest way to guarantee that is to run the same code.
  */
 
 // @ts-expect-error plain .mjs module, types declared in depth.d.mts

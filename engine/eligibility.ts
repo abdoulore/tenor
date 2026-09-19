@@ -42,8 +42,8 @@ export interface RouteCapability {
  * What each wrapper can and cannot do.
  *
  * paysDividends and usableAsCollateral are null where Bitget's treatment is not confirmed
- * from data on disk. Per the plan's no-new-research rule those stay null and surface as a
- * warning rather than an invented yes or no.
+ * from data on disk. They stay null and surface as a warning rather than an invented yes
+ * or no.
  */
 export const CAPABILITIES: Record<RouteId, RouteCapability> = {
   rtoken: {

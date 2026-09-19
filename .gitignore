@@ -27,5 +27,5 @@ ops/*.pid
 # Railway CLI link state
 .railway/
 
-# Internal planning and submission notes. Not part of the product.
+# Local working notes. Not part of the product.
 private/

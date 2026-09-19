@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Checkpoint W: price five tickers end to end against live books, across all four sessions,
- * with the full breakdown. One of the five must be an empty book name.
+ * Price five tickers end to end against live books, across all four sessions, with the full
+ * breakdown. One of the five is deliberately a name with no market.
  *
  *   node engine/demo.ts
  *   node engine/demo.ts --tickers NVDA,SOXL --size 10000 --horizon 7
@@ -23,8 +23,8 @@ const arg = (name: string, fallback: string): string => {
 /*
  * NVDA and MSFT sit inside the fee gap, so the horizon genuinely decides on them.
  * AAOI is liquid but wide, so execution decides.
- * SOXL has no rToken book in any session, which is the state the plan calls a headline
- * feature rather than an error, so it is in the demo set deliberately.
+ * SOXL has no rToken book in any session. That is a finding rather than an error, so it is
+ * in the set deliberately.
  * HOOD is a large mover with a 36bp gap.
  */
 const TICKERS = arg("--tickers", "NVDA,MSFT,AAOI,SOXL,HOOD").split(",").map((t) => t.trim().toUpperCase());
@@ -97,7 +97,7 @@ function printQuote(q: Quote, outlookFor: Awaited<ReturnType<typeof sessionOutlo
 async function main(): Promise<void> {
   const liveSession = sessionLabel(new Date()) as Session;
   console.log("=".repeat(96));
-  console.log("TENOR COST ENGINE: CHECKPOINT W");
+  console.log("TENOR COST ENGINE");
   console.log("=".repeat(96));
   console.log(`  live session right now: ${liveSession}`);
   console.log(`  size $${SIZE.toLocaleString()}, horizon ${HORIZON}d, long`);
