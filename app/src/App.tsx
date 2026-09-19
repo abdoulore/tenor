@@ -562,7 +562,13 @@ export default function App() {
           )}
 
           {tab === "sessions" && outlook && (
-            <SessionChart outlook={outlook} current={session} size={nearestSize(intent.notionalUsd)} ticker={intent.ticker} />
+            <SessionChart
+              outlook={outlook}
+              current={session}
+              size={nearestSize(intent.notionalUsd)}
+              requested={intent.notionalUsd}
+              ticker={intent.ticker}
+            />
           )}
 
           {tab === "breakeven" && (
@@ -687,7 +693,14 @@ function decisionGap(quote: Quote): number | null {
   return b.totalBp.mid - a.totalBp.mid;
 }
 
-/** The sampler only walked $2,000 and $10,000, so medians snap to a measured size. */
+/**
+ * The session chart can only show sizes the sampler actually walked.
+ *
+ * Interpolating between them would invent a measurement, so the request snaps to the nearest
+ * real one and the chart says when that is not what was asked for. Live pricing always uses
+ * the exact amount; this is only about the historical medians.
+ */
 function nearestSize(n: number): number {
-  return SIZES.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
+  const available = (outlookData as OutlookFile).sizes ?? SIZES;
+  return available.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a));
 }

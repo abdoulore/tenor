@@ -23,7 +23,9 @@ const arg = (name, fallback) => {
 
 const DATA_DIR = arg("--data", join(process.cwd(), "sampler", "data"));
 const OUT = arg("--out", join(process.cwd(), "app", "src", "data", "outlook.json"));
-const SIZES = ["2000", "10000"];
+/* Must match sampler/depth.mjs. Older records carry only 2000 and 10000, so a size with no
+   samples for a ticker comes out null rather than being filled in from a neighbour. */
+const SIZES = ["500", "2000", "10000", "50000"];
 const SESSIONS = ["premarket", "regular", "afterhours", "overnight", "weekend"];
 
 function median(xs) {

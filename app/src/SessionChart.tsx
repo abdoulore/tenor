@@ -41,11 +41,15 @@ export function SessionChart({
   outlook,
   current,
   size,
+  requested,
   ticker,
 }: {
   outlook: Record<"rtoken" | "perp" | "stockplus", SessionOutlook[]>;
   current: Session;
+  /** A size the sampler actually walked. */
   size: number;
+  /** What the user asked for, which may not be one of those. */
+  requested: number;
   ticker: string;
 }) {
   // Dollars on the amount asked about, because a basis point means nothing to most people.
@@ -160,6 +164,13 @@ export function SessionChart({
       <p className="sub">
         The round trip on ${size.toLocaleString()}: what you lose to the spread getting in and
         back out. Fees and funding are not in this chart.
+        {requested !== size && (
+          <>
+            {" "}You asked about ${requested.toLocaleString()}, and ${size.toLocaleString()} is the
+            closest size we have actually measured, so that is what is shown here. The prices on
+            your options tab use your real amount.
+          </>
+        )}
       </p>
       {takeaway && <p className="takeaway">{takeaway}</p>}
 

@@ -10,7 +10,17 @@
  * execution cost for that size, directly comparable to the fee gap.
  */
 
-export const FILL_SIZES_USD = [2_000, 10_000];
+/*
+ * Sizes the book is walked for.
+ *
+ * Adding sizes costs no extra requests: the book is already fetched, and walking it again is
+ * local arithmetic. The only cost is about 14MB a day of record size, against a 5GB volume.
+ *
+ * Two sizes meant someone asking about $50,000 was shown the $10,000 figure. Four covers the
+ * range without pretending to measure what was never measured, which is why this is a list of
+ * real sizes rather than an interpolation.
+ */
+export const FILL_SIZES_USD = [500, 2_000, 10_000, 50_000];
 
 /** Coerce a level array of [price, qty] in either string or number form. */
 export function levels(raw) {
