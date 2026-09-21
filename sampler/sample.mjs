@@ -16,7 +16,7 @@
  *   node sampler/sample.mjs --selftest   offline maths check, no network
  */
 
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   BASE, CANARY_LIQUID, CONTROL_THIN, buildUniverse, extractPlatformVolume, extractVolume, rowsOf,
@@ -36,6 +36,64 @@ const REQUEST_GAP_MS = Number(flag("--gap", process.env.REQUEST_GAP_MS ?? 70)); 
 const UNIVERSE_REFRESH_MS = 6 * 60 * 60 * 1000;
 const ORDERBOOK_LIMIT = 150;
 
+/**
+ * Every ticker ever admitted to the sample, kept across universe refreshes so a name is
+ * never dropped for going quiet. Survives only within a process; a restart re-admits from
+ * whatever qualifies then, plus whatever the volume on disk already covers.
+ */
+const admitted = new Set();
+let admittedFile = null;
+
+/**
+ * Admission survives restarts, because a redeploy would otherwise re-admit only whatever
+ * qualifies at that moment and silently forget every name that had gone quiet.
+ *
+ * On a first run with no file, the set is seeded from the tickers already present in the
+ * collected data, so names sampled before this existed are recovered rather than lost.
+ */
+async function loadAdmitted(dir) {
+  admittedFile = join(dir, "admitted.json");
+  try {
+    const raw = JSON.parse(await readFile(admittedFile, "utf8"));
+    if (Array.isArray(raw)) { for (const t of raw) admitted.add(String(t)); }
+    log(`admitted set loaded: ${admitted.size} tickers`);
+    return;
+  } catch { /* first run */ }
+
+  try {
+    /*
+     * Every file, not the recent ones. ABNB left the set on a Thursday, so a window of the
+     * last few days would miss exactly the names this is meant to recover. Reading the whole
+     * archive costs a few seconds once at boot, against losing a ticker permanently.
+     */
+    const files = (await readdir(dir)).filter((f) => f.startsWith("samples-") && f.endsWith(".ndjson")).sort();
+    for (const f of files) {
+      const text = await readFile(join(dir, f), "utf8");
+      for (const line of text.split(String.fromCharCode(10))) {
+        if (!line.trim()) continue;
+        const i = line.indexOf('"ticker":"');
+        if (i < 0) continue;
+        const rest = line.slice(i + 10);
+        const end = rest.indexOf('"');
+        if (end > 0) admitted.add(rest.slice(0, end));
+      }
+    }
+    log(`admitted set seeded from collected data: ${admitted.size} tickers`);
+  } catch (e) {
+    log(`could not seed admitted set: ${e?.message ?? e}`);
+  }
+}
+
+async function saveAdmitted() {
+  if (!admittedFile) return;
+  try {
+    await writeFile(admittedFile, JSON.stringify([...admitted].sort()), "utf8");
+  } catch (e) {
+    log(`could not save admitted set: ${e?.message ?? e}`);
+  }
+}
+
+/** Resolved once and reused, since instrument lists barely move and the calls are not free. */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -110,13 +168,44 @@ async function loadUniverse() {
     .filter((p) => p && p.thin)
     .map((p) => ({ ...p, control: true }));
 
-  const selected = [...liquid.map((p) => ({ ...p, control: false })), ...controls];
+  /*
+   * The volume floor decides what enters the set. It must never decide what stays.
+   *
+   * The screen asks "is this liquid enough to be worth measuring" from a trailing 24 hour
+   * window, so over a weekend it drops exactly the names that have become illiquid. But
+   * becoming illiquid is the measurement. ABNB was sampled all week at $289K of turnover,
+   * fell to $10K over a weekend, and was dropped at the moment its behaviour got
+   * interesting. Thirty-one names went the same way and left holes that cannot be filled in
+   * later.
+   *
+   * So admission is sticky: once a ticker has been sampled it keeps being sampled, and if
+   * its book empties the record says so, which is worth far more than a gap.
+   */
+  for (const p of liquid) admitted.add(p.ticker);
+  await saveAdmitted();
+
+  const controlNames = new Set(controls.map((c) => c.ticker));
+  const selected = u.pairs
+    .filter((p) => admitted.has(p.ticker) || controlNames.has(p.ticker))
+    .map((p) => ({ ...p, control: controlNames.has(p.ticker) }));
+
   const liveTickers = new Set(liquid.map((p) => p.ticker));
+  const heldOpen = selected
+    .filter((p) => !p.control && !liveTickers.has(p.ticker))
+    .map((p) => p.ticker);
   const drift = {
     missingVsCanary: CANARY_LIQUID.filter((t) => !liveTickers.has(t)),
     newVsCanary: [...liveTickers].filter((t) => !CANARY_LIQUID.includes(t)),
   };
-  return { selected, liquidCount: liquid.length, controlCount: controls.length, drift, meta: u };
+  return {
+    selected,
+    liquidCount: liquid.length,
+    controlCount: controls.length,
+    /** Sampled because they were admitted earlier, though they would not qualify today. */
+    heldOpen,
+    drift,
+    meta: u,
+  };
 }
 
 // ---------------------------------------------------------------- sampling
@@ -278,6 +367,7 @@ async function main() {
 
   await mkdir(DATA_DIR, { recursive: true });
   log(`data dir ${DATA_DIR}`);
+  await loadAdmitted(DATA_DIR);
   log(`cycle every ${Math.round(CYCLE_MS / 1000)}s, request gap ${REQUEST_GAP_MS}ms`);
 
   let universe = null;
@@ -288,7 +378,8 @@ async function main() {
       if (!universe || Date.now() - universeAt > UNIVERSE_REFRESH_MS) {
         universe = await loadUniverse();
         universeAt = Date.now();
-        log(`universe: ${universe.liquidCount} liquid plus ${universe.controlCount} thin controls, ${universe.selected.length} tickers, ${universe.selected.length * 2} requests per cycle`);
+        log(`universe: ${universe.selected.length} tickers (${universe.liquidCount} qualify today, ${universe.heldOpen.length} held open, ${universe.controlCount} controls), ${universe.selected.length * 2} requests per cycle`);
+        if (universe.heldOpen.length) log(`held open despite low volume: ${universe.heldOpen.join(" ")}`);
         if (universe.drift.missingVsCanary.length) log(`drift, in flip test but not liquid now: ${universe.drift.missingVsCanary.join(" ")}`);
         if (universe.drift.newVsCanary.length) log(`drift, liquid now but not in flip test: ${universe.drift.newVsCanary.join(" ")}`);
         await writeFile(join(DATA_DIR, "universe.json"), JSON.stringify({ at: new Date().toISOString(), ...universe }, null, 2), "utf8");

@@ -29,3 +29,7 @@ ops/*.pid
 
 # Local working notes. Not part of the product.
 private/
+
+# Scratch files from local maintenance. Never part of the product.
+*.sed
+tmp-*/
