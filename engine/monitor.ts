@@ -168,9 +168,11 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
     return {
       ...base,
       verdict: "stay",
-      message:
-        `${TheRoute(alt)} cannot absorb $${p.notionalUsd.toLocaleString()} ` +
-        `right now, so moving is not an option even if it were cheaper.`,
+      message: other.source === "quote"
+        ? `Bitget's quote for ${theRoute(alt)} covers less than $${p.notionalUsd.toLocaleString()} right now, ` +
+          `so the whole position cannot move there at its quoted price.`
+        : `${TheRoute(alt)} cannot take $${p.notionalUsd.toLocaleString()} right now, so the whole ` +
+          `position cannot move there.`,
     };
   }
 

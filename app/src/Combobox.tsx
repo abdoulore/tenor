@@ -44,18 +44,35 @@ export function Combobox({
   // The field follows the value when it changes from outside, such as a typed sentence.
   useEffect(() => { setText(value); }, [value]);
 
+  /*
+   * Leaving the field settles it. A typed name that exactly matches a company is taken, so
+   * typing "NVDA" and clicking elsewhere works without picking from the list. Anything else
+   * goes back to the last real choice, so the field never shows a company that was not chosen.
+   */
+  const allItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const latest = useRef({ text, value, allItems, onChange });
+  latest.current = { text, value, allItems, onChange };
+  const settle = () => {
+    const { text: t, value: v, allItems: items, onChange: commit } = latest.current;
+    const q = t.trim().toUpperCase();
+    if (q && q !== v && items.includes(q)) { commit(q); setText(q); }
+    else if (q !== v) setText(v);
+    setOpen(false);
+  };
+
   useEffect(() => {
     const away = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) settle();
     };
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, []);
 
-  // Matches at the start of a name come first, so typing "NF" puts NFLX above SNDK.
+  // An exact match comes first, then matches at the start of a name, so typing "NF" puts NFLX
+  // above SNDK and typing "MU" puts MU above anything longer.
   const filtered = useMemo(() => {
     const q = text.trim().toUpperCase();
-    const score = (s: string) => (s.startsWith(q) ? 0 : 1);
+    const score = (s: string) => (s === q ? -1 : s.startsWith(q) ? 0 : 1);
     return groups
       .map((g) => ({
         ...g,
@@ -82,6 +99,7 @@ export function Combobox({
       });
     } else if (e.key === "Enter") {
       if (open && flat[active]) { e.preventDefault(); take(flat[active]); }
+      else settle();
     } else if (e.key === "Escape") {
       setOpen(false);
       setText(value);
@@ -105,6 +123,7 @@ export function Combobox({
         placeholder={placeholder}
         onChange={(e) => { setText(e.target.value.toUpperCase()); setOpen(true); setActive(0); }}
         onFocus={() => setOpen(true)}
+        onBlur={settle}
         onKeyDown={onKey}
       />
       {open && (

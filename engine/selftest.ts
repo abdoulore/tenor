@@ -614,7 +614,7 @@ group("monitor: should you move a position you already hold");
     funding: settlements(30, 0.002), now: NOW,
   });
   check("an unfillable alternative means stay", thin.verdict === "stay", thin.verdict);
-  check("and says it cannot absorb the size", /cannot absorb/.test(thin.message));
+  check("and says it cannot take the size", /cannot take \$/.test(thin.message), thin.message);
 
   // Holding the spot side, there is no funding to escape, so moving is never right.
   const onSpot = analysePosition(position({ route: "rtoken" }), {
