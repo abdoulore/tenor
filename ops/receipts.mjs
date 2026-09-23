@@ -99,6 +99,29 @@ const costAt = (sample, route, size) => {
 };
 const emptyAt = (sample, route) => legOf(sample, route)?.empty === true;
 
+/** Contiguous runs of an empty book, for names whose availability changed. */
+function outagesFor(keys, index) {
+  const out = [];
+  for (const key of keys) {
+    const [ticker, route] = key.split(":");
+    let run = null;
+    for (const { t, s } of index.get(ticker) ?? []) {
+      if (emptyAt(s, route)) {
+        if (!run) run = { ticker, route, from: s.t, to: s.t, samples: 0, sessions: new Set() };
+        run.to = s.t;
+        run.samples++;
+        run.sessions.add(s.session);
+      } else if (run) {
+        out.push({ ...run, sessions: [...run.sessions] });
+        run = null;
+      }
+      void t;
+    }
+    if (run) out.push({ ...run, sessions: [...run.sessions], ongoing: true });
+  }
+  return out;
+}
+
 async function main() {
   const predictions = await readNdjson(PRED_DIR, "predictions-");
   const samples = await readNdjson(DATA_DIR, "samples-");
@@ -263,6 +286,9 @@ async function main() {
       deadNames: [...avail.deadTickers].sort(),
       /* A name in both sets quoted sometimes and not others, so its state genuinely moved. */
       everChanged: [...avail.deadTickers].filter((k) => avail.liveTickers.has(k)).sort(),
+      /* For each name that changed, exactly when its book was empty, from the raw samples. A
+         market going dark for two hours is a finding, and "it changed" alone does not say so. */
+      outages: outagesFor([...avail.deadTickers].filter((k) => avail.liveTickers.has(k)), index),
     },
     stability: stabilityOut,
     flips: stability[60].flips,

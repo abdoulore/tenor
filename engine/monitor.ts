@@ -21,7 +21,7 @@
 import { execution, isEmpty } from "./book.ts";
 import { DEFAULT_FEES, roundTripFeeBp, type FeeSchedule } from "./fees.ts";
 import { projectFunding, type Settlement } from "./funding.ts";
-import { ROUTE_LABELS } from "./eligibility.ts";
+import { ROUTE_NOUN, theRoute, TheRoute } from "./eligibility.ts";
 import type { Book, Direction, Range, RouteId } from "./types.ts";
 
 export interface Position {
@@ -107,7 +107,11 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
   const now = inputs.now ?? Date.now();
   const margin = inputs.marginOfSafety ?? 0.25;
   const left = daysRemaining(p, now);
-  const alt = alternativeTo(p.route);
+  /*
+   * A short can only be held on the perpetual. The tokenized stock has to be owned before it
+   * can be sold, so for a short there is nowhere to move to, however expensive funding gets.
+   */
+  const alt = p.direction === "short" ? null : alternativeTo(p.route);
 
   const base: SwitchAnalysis = {
     position: p,
@@ -134,8 +138,18 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       verdict: "stuck",
       cannotExit: true,
       message:
-        `Nobody is quoting a price for your ${ROUTE_LABELS[p.route].toLowerCase()} right now, ` +
+        `Nobody is quoting a price for your ${ROUTE_NOUN[p.route]} right now, ` +
         `so you could not sell it even if you wanted to. Nothing to do until a market returns.`,
+    };
+  }
+
+  if (p.direction === "short") {
+    return {
+      ...base,
+      verdict: "stay",
+      message:
+        `Only the perpetual can hold a short on ${p.ticker}, so there is nowhere to move it. ` +
+        `Funding is the cost to watch.`,
     };
   }
 
@@ -153,7 +167,7 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       ...base,
       verdict: "stay",
       message:
-        `The ${ROUTE_LABELS[alt].toLowerCase()} cannot absorb $${p.notionalUsd.toLocaleString()} ` +
+        `${TheRoute(alt)} cannot absorb $${p.notionalUsd.toLocaleString()} ` +
         `right now, so moving is not an option even if it were cheaper.`,
     };
   }
@@ -195,7 +209,7 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       stayFundingBp: stayFunding, switchFundingBp: switchFunding,
       switchCostBp: switchCost, netSavingBp: net, breakevenDays,
       message:
-        `Moving to the ${ROUTE_LABELS[alt].toLowerCase()} costs ${money(switchCost)} today and ` +
+        `Moving to ${theRoute(alt)} costs ${money(switchCost)} today and ` +
         `should save about ${money(net.mid)} over your remaining ${left.toFixed(0)} days. ` +
         `It pays for itself in ${breakevenDays === Infinity ? "never" : `${breakevenDays} days`}.`,
     };
@@ -208,7 +222,7 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       stayFundingBp: stayFunding, switchFundingBp: switchFunding,
       switchCostBp: switchCost, netSavingBp: net, breakevenDays,
       message:
-        `The ${ROUTE_LABELS[alt].toLowerCase()} is slightly cheaper from here, but moving costs ` +
+        `${TheRoute(alt)} is slightly cheaper from here, but moving costs ` +
         `${money(switchCost)} and would only save ${money(net.mid)}. Not worth the trade.`,
     };
   }
@@ -219,7 +233,7 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
     stayFundingBp: stayFunding, switchFundingBp: switchFunding,
     switchCostBp: switchCost, netSavingBp: net, breakevenDays,
     message:
-      `Stay put. Moving to the ${ROUTE_LABELS[alt].toLowerCase()} would cost ${money(switchCost)} ` +
+      `Stay put. Moving to ${theRoute(alt)} would cost ${money(switchCost)} ` +
       `and leave you ${money(net.mid)} worse off over the days you have left.`,
   };
 }

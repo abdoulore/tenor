@@ -21,21 +21,26 @@ So we measured it.
 ## What we found
 
 Continuous order book sampling on both legs of every tradeable ticker, every five minutes,
-since 15 September. **133 tickers, 99,637 snapshots, 1,101 cycles** so far.
+since 15 September. **146 tickers, 198,072 snapshots, 2,080 cycles** so far.
 
-**Half of these markets do not exist.** Of 133 tokenized stocks watched, **65 have never
+**Half of these markets do not exist.** Of 146 tokenized stocks watched, **77 have never
 quoted a price** in any session. Not a wide spread, no market at all. That includes Netflix,
 McDonald's, Lilly, Exxon, GE, Uber and Boeing. Bitget lists them. Nobody trades them.
 
-**Size matters more than the fee schedule.** Coca-Cola's tokenized book costs 22bp to round
-trip at $500 and 116bp at $50,000. Quoting a top-of-book spread would have understated a
-$50,000 order by more than half.
+**Size matters more than the fee schedule.** Coca-Cola's tokenized book costs 14bp to round
+trip at $500 and 118bp at $50,000, more than eight times as much. A top-of-book spread would
+have understated a $50,000 order by more than half.
 
 **The hour matters, but not the way you would guess.** US market hours are cheapest for
-**78% of tickers**, and for the deepest third it is 84%. The exceptions are real but tiny: when
+**71% of tickers**, and for the deepest third it is 85%. The exceptions are real but tiny: when
 something beats US hours it saves about a basis point, while trading at the wrong hour when
-US hours wins costs a median of 14bp and up to 108bp. ABNB is $1.91 in US hours and $23.61
+US hours wins costs a median of 13bp and up to 61bp. ABNB is $1.95 in US hours and $13.09
 overnight, on $2,000. The asymmetry is the finding, not the exceptions.
+
+**Markets are alive all day or not at all.** No tokenized stock that trades in US hours loses
+its market overnight; the hour changes the cost, not whether you can trade. The single
+exception in eight days was MSFT, whose tokenized book was empty for two hours on the morning
+of 21 September and then came back.
 
 **Fees are measured, not assumed.** The spot rate comes from a real fill on a real account
 (3.95bp, against the 10bp published rate), the perpetual rate from four NVDA fills that agree
@@ -46,15 +51,16 @@ Bitget and neither is derivable from the other. Order numbers are in
 ## Track record
 
 Every recommendation is written down the moment it is made, before the answer is knowable.
-**13,728 logged so far.** Scored against the continuous sampling:
+**38,496 logged so far.** Scored against the continuous sampling:
 
 | If you acted | Checks | Typical miss on $2,000 | Still within $1.00 |
 |---|---|---|---|
-| 5 minutes later | 17,372 | $0.18 | 84.8% |
-| 1 hour later | 16,712 | $0.29 | 78.2% |
-| 4 hours later | 15,236 | $0.39 | 73.6% |
+| 5 minutes later | 47,701 | $0.26 | 78.7% |
+| 1 hour later | 46,952 | $0.40 | 71.2% |
+| 4 hours later | 45,577 | $0.50 | 66.7% |
 
 Median error is about zero at every lag, so the quotes are not biased, they simply age.
+Replayed on later prices, 90% of recommendations still hold an hour later and 87% after four.
 The calls that turned out wrong are listed in the app rather than hidden, and the 30 day
 funding projections are **not scored**, because none has finished running.
 
@@ -85,7 +91,7 @@ All public Bitget endpoints, no account required to run this:
 
 | Directory | What it is |
 |---|---|
-| `engine/` | The cost engine. Deterministic, dependency free, 175 offline tests. |
+| `engine/` | The cost engine. Deterministic, dependency free, 177 offline tests. |
 | `sampler/` | Continuous order book sampler. Zero dependencies, plain `.mjs`. |
 | `app/` | Vite + React front end. Static, calls Bitget directly from the browser. |
 | `api/` | One serverless function, so the model key never reaches the browser. |
@@ -97,7 +103,7 @@ All public Bitget endpoints, no account required to run this:
 Node 20 or later. The engine and sampler have **no dependencies** and no build step.
 
 ```bash
-node engine/selftest.ts          # 175 tests, offline, no network
+node engine/selftest.ts          # 177 tests, offline, no network
 node engine/demo.ts              # price five tickers against live books
 node sampler/sample.mjs --once   # one sampling cycle
 node ops/receipts.mjs            # score the prediction log

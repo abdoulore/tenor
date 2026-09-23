@@ -13,7 +13,7 @@
 
 import { absorbable, execution, isEmpty } from "./book.ts";
 import { DEFAULT_FEES, feeCaveats, feeGapBp, feeLegFor, roundTripFeeBp, unverifiedLegs, type FeeSchedule } from "./fees.ts";
-import { checkEligibility, ROUTE_LABELS } from "./eligibility.ts";
+import { checkEligibility, ROUTE_LABELS, theRoute } from "./eligibility.ts";
 import { projectFunding, type Settlement } from "./funding.ts";
 import type {
   Book, Intent, Quote, Range, RouteId, RouteResult, Session, SessionOutlook,
@@ -139,7 +139,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `Every time we checked at this hour, nobody was quoting a price for the ${ROUTE_LABELS[route].toLowerCase()}.`,
+      reason: `Every time we checked at this hour, nobody was quoting a price for ${theRoute(route)}.`,
       absorbableUsd: 0,
     };
   }
@@ -174,7 +174,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `Nobody is quoting a price for the ${ROUTE_LABELS[route].toLowerCase()} right now, so you could not buy or sell it at any amount.`,
+      reason: `Nobody is quoting a price for ${theRoute(route)} right now, so you could not buy or sell it at any amount.`,
       absorbableUsd: 0,
     };
   }
@@ -185,7 +185,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `The prices quoted for the ${ROUTE_LABELS[route].toLowerCase()} do not make sense, so we will not price it.`,
+      reason: `The prices quoted for ${theRoute(route)} do not make sense, so we will not price it.`,
       absorbableUsd: 0,
     };
   }
@@ -197,7 +197,7 @@ function priceRoute(
       execution: exec,
       absorbableUsd: canTake,
       reason:
-        `Only about $${canTake.toLocaleString()} of the ${ROUTE_LABELS[route].toLowerCase()} is on offer, ` +
+        `Only about $${canTake.toLocaleString()} of ${theRoute(route)} is on offer, ` +
         `and you asked for $${intent.notionalUsd.toLocaleString()}. You would move the price against yourself.`,
     };
   }

@@ -27,6 +27,13 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
   // A perfect availability score means the dead markets never came back, not that anything
   // clever was predicted. The page has to say which, or the number flatters.
   const structural = r.availability.everChanged.length === 0;
+  const deadNames = [...new Set(r.availability.deadNames.map((d) => d.split(":")[0]))];
+  // Worked out from the log itself, so the sentence cannot go stale the way a typed-in
+  // "two days" did once the log was a week old.
+  const spanDays = Math.max(1, Math.round((Date.parse(r.to) - Date.parse(r.from)) / 86_400_000));
+  const listed = deadNames.length <= 1
+    ? deadNames.join("")
+    : `${deadNames.slice(0, -1).join(", ")} and ${deadNames[deadNames.length - 1]}`;
 
   return (
     <section className="receipts">
@@ -144,12 +151,28 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         market was live {fmt(r.availability.saidLive)} times, still true{" "}
         {r.availability.liveStillLivePct}%.
       </p>
+      {!structural && (
+        <p className="caveat">
+          {/*
+            * Something did change state, so the score means more than it did when every
+            * market was simply dead or alive all week. Name it, with times, rather than let a
+            * 99.9% absorb it.
+            */}
+          Almost every market was either dead or alive for the whole period. The exception
+          {(r.availability as { outages?: { ticker: string; from: string; to: string }[] }).outages?.length === 1 ? " was" : "s were"}{" "}
+          {((r.availability as { outages?: { ticker: string; from: string; to: string }[] }).outages ?? [])
+            .map((o) => `${o.ticker}, whose tokenized book was empty from ${o.from.slice(11, 16)} to ${o.to.slice(11, 16)} UTC on ${o.from.slice(0, 10)}`)
+            .join("; ")}
+          , then came back. Even one of the most liquid names on the list can go dark for a
+          couple of hours with no warning.
+        </p>
+      )}
       {structural && (
         <p className="caveat">
-          Read that carefully rather than as a score. Across these companies only{" "}
-          {r.availability.deadNames.map((d) => d.split(":")[0]).join(", ")} was ever found with
-          no market, and no company changed state once in two days of checks every five
-          minutes. So this is not evidence that we predict outages well. It is evidence that a
+          Read that carefully rather than as a score. Of the {r.tickers.length} companies
+          tracked, {deadNames.length === 1 ? `only ${listed} was` : `${listed} were`} ever
+          found with no market, and not one company changed state in {spanDays} days of checks
+          every five minutes. So this is not evidence that we predict outages well. It is evidence that a
           dead tokenized market stays dead, which is the more useful finding and a worse thing
           for anyone holding one.
         </p>

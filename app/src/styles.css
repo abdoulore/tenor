@@ -458,3 +458,14 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
   color: var(--text); background: var(--panel-2);
   border-left: 2px solid var(--rtoken); border-radius: 0 8px 8px 0;
 }
+
+/* Monitor form, matching the main one: typeable company, free amount, a real opening date. */
+.addpos { align-items: center; }
+.addpos-ticker { flex: 1 1 180px; min-width: 150px; }
+.addpos-amount { flex: 0 1 150px; }
+.addpos-amount input { padding: 9px 10px 9px 4px; font-size: 14px; }
+.addpos-date { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.addpos-date input {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 9px; font-size: 14px; font-family: var(--sans); color-scheme: dark;
+}

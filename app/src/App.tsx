@@ -13,7 +13,7 @@ import { priceIntent, betterSession } from "../../engine/engine.ts";
 import { fetchBook, fetchFunding, listTickers, resolvePair, type Pair } from "../../engine/bitget.ts";
 import { sessionLabel } from "../../engine/book.ts";
 import { DEFAULT_FEES, roundTripFeeBp } from "../../engine/fees.ts";
-import { ROUTE_BLURBS } from "../../engine/eligibility.ts";
+import { ROUTE_BLURBS, theRoute, TheRoute } from "../../engine/eligibility.ts";
 import { crossoverDays } from "../../engine/funding.ts";
 import {
   DEFAULT_CONSTRAINTS,
@@ -639,10 +639,10 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
   if (!second) {
     return (
       <div className="verdict only">
-        <strong>Only one option works: the {best.label.toLowerCase()}.</strong>
+        <strong>Only one option works: {theRoute(best.route)}.</strong>
         <span>
           {dead
-            ? `Nobody is quoting a price for the ${dead.label.toLowerCase()} at all, so there is nothing to compare it against.`
+            ? `Nobody is quoting a price for ${theRoute(dead.route)} at all, so there is nothing to compare it against.`
             : "Nothing else can do what you asked."}
         </span>
       </div>
@@ -662,7 +662,7 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
       <div className="verdict unsettled">
         <strong>Too close to call.</strong>
         <span>
-          The {best.label.toLowerCase()} is ahead by {usd(diff, notional)}, but funding on
+          {TheRoute(best.route)} is ahead by {usd(diff, notional)}, but funding on
           the perpetual could swing the result by {usd(widestBand, notional)} over{" "}
           {quote.intent.horizonDays} days. Buying and selling is the only part anyone can price
           honestly today.
@@ -673,7 +673,7 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
 
   return (
     <div className="verdict">
-      <strong>Use the {best.label.toLowerCase()}. It saves you {usd(diff, notional)}.</strong>
+      <strong>Use {theRoute(best.route)}. It saves you {usd(diff, notional)}.</strong>
       <span>
         On ${notional.toLocaleString()} of {quote.intent.ticker}, held {quote.intent.horizonDays} days.
         {" "}

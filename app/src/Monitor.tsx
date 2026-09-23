@@ -14,6 +14,7 @@ import { fetchBook, fetchFunding, resolvePair } from "../../engine/bitget.ts";
 import type { Book } from "../../engine/types.ts";
 import type { Settlement } from "../../engine/funding.ts";
 import type { TickerGroups } from "./IntentControls.tsx";
+import { Combobox } from "./Combobox.tsx";
 
 const STORE_KEY = "tenor.positions.v1";
 
@@ -27,7 +28,7 @@ const VERDICT: Record<string, { title: string; tone: string }> = {
 
 const ROUTE_WORD: Record<string, string> = {
   rtoken: "tokenized stock",
-  perp: "perpetual futures",
+  perp: "perpetual",
   stockplus: "Stock+",
 };
 
@@ -53,8 +54,14 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    ticker: "", route: "perp" as Position["route"], notionalUsd: 10_000, horizonDays: 30,
+    ticker: "",
+    route: "perp" as Position["route"],
+    direction: "long" as Position["direction"],
+    notionalUsd: null as number | null,
+    horizonDays: 30,
+    openedOn: today,
   });
 
   useEffect(() => { save(positions); }, [positions]);
@@ -105,19 +112,26 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
   useEffect(() => { void check(positions); /* on mount and whenever the list changes */ },
     [positions, check]);
 
+  const ready = Boolean(form.ticker && form.notionalUsd && form.openedOn <= today);
   const add = () => {
-    if (!form.ticker) return;
+    if (!ready) return;
+    /*
+     * The opening date matters: someone who bought a month ago has a month less funding to
+     * pay than someone buying today, and the switch arithmetic only counts what is left.
+     */
+    const opened = new Date(`${form.openedOn}T12:00:00Z`);
     const p: Position = {
       id: `${form.ticker}-${Date.now()}`,
       ticker: form.ticker,
-      route: form.route,
-      notionalUsd: form.notionalUsd,
-      direction: "long",
-      openedAt: new Date().toISOString(),
+      // A short can only be held on the perpetual.
+      route: form.direction === "short" ? "perp" : form.route,
+      notionalUsd: form.notionalUsd!,
+      direction: form.direction,
+      openedAt: opened.toISOString(),
       horizonDays: form.horizonDays,
     };
     setPositions((prev) => [...prev, p]);
-    setForm((f) => ({ ...f, ticker: "" }));
+    setForm((f) => ({ ...f, ticker: "", notionalUsd: null, openedOn: today }));
   };
 
   const remove = (id: string) => setPositions((prev) => prev.filter((p) => p.id !== id));
@@ -141,42 +155,72 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
       </p>
 
       <div className="addpos">
+        <div className="addpos-ticker">
+          <Combobox
+            value={form.ticker}
+            placeholder="Type a ticker"
+            onChange={(t) => setForm((f) => ({ ...f, ticker: t }))}
+            groups={[
+              { label: `Can be traded (${groups.tradeable.length})`, items: groups.tradeable },
+              { label: `Listed, but nobody trades them (${groups.dead.length})`, items: groups.dead, suffix: "no market", tone: "dead" },
+              { label: `Too small for us to have watched (${groups.untracked.length})`, items: groups.untracked, suffix: "not tracked", tone: "warn" },
+            ]}
+          />
+        </div>
         <select
-          value={form.ticker}
-          onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value }))}
-          aria-label="Company"
+          value={form.direction}
+          onChange={(e) => {
+            const direction = e.target.value as Position["direction"];
+            setForm((f) => ({ ...f, direction, route: direction === "short" ? "perp" : f.route }));
+          }}
+          aria-label="Direction"
         >
-          <option value="" disabled>Choose a company</option>
-          {groups.tradeable.map((t) => <option key={t} value={t}>{t}</option>)}
-          {groups.dead.map((t) => <option key={t} value={t}>{t} — no market</option>)}
+          <option value="long">Long</option>
+          <option value="short">Short</option>
         </select>
         <select
           value={form.route}
           onChange={(e) => setForm((f) => ({ ...f, route: e.target.value as Position["route"] }))}
           aria-label="What you hold"
         >
-          <option value="perp">I hold the perpetual</option>
-          <option value="rtoken">I hold the tokenized stock</option>
+          <option value="perp">in the perpetual</option>
+          <option value="rtoken" disabled={form.direction === "short"}>in the tokenized stock</option>
         </select>
-        <select
-          value={form.notionalUsd}
-          onChange={(e) => setForm((f) => ({ ...f, notionalUsd: Number(e.target.value) }))}
-          aria-label="How much"
-        >
-          {[2_000, 5_000, 10_000, 25_000, 50_000].map((a) => (
-            <option key={a} value={a}>${a.toLocaleString()}</option>
-          ))}
-        </select>
+        <div className="amount addpos-amount">
+          <span className="prefix">$</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            aria-label="How much"
+            placeholder="Amount"
+            value={form.notionalUsd === null ? "" : form.notionalUsd.toLocaleString()}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/[^\d.]/g, "");
+              const n = Number(digits);
+              setForm((f) => ({ ...f, notionalUsd: digits === "" || !Number.isFinite(n) || n <= 0 ? null : n }));
+            }}
+          />
+        </div>
+        <label className="addpos-date">
+          opened
+          <input
+            type="date"
+            value={form.openedOn}
+            max={today}
+            onChange={(e) => setForm((f) => ({ ...f, openedOn: e.target.value || today }))}
+          />
+        </label>
         <select
           value={form.horizonDays}
           onChange={(e) => setForm((f) => ({ ...f, horizonDays: Number(e.target.value) }))}
           aria-label="Planned holding period"
         >
           {[7, 14, 30, 90, 365].map((d) => (
-            <option key={d} value={d}>for {d === 365 ? "a year" : `${d} days`}</option>
+            <option key={d} value={d}>held for {d === 365 ? "a year" : `${d} days`}</option>
           ))}
         </select>
-        <button onClick={add} disabled={!form.ticker}>Add</button>
+        <button onClick={add} disabled={!ready}>Add</button>
       </div>
 
       {positions.length > 0 && (
@@ -190,7 +234,9 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
             {checking ? "Checking" : "Check again"}
           </button>
           {checkedAt && !checking && (
-            <span className="when">checked {Math.round((Date.now() - checkedAt) / 1000)}s ago</span>
+            <span className="when">
+              checked at {new Date(checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
           )}
         </div>
       )}
@@ -214,7 +260,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
             <div className="pos-head">
               <strong>{p.ticker}</strong>
               <span className="pos-what">
-                ${p.notionalUsd.toLocaleString()} in the {ROUTE_WORD[p.route]}
+                ${p.notionalUsd.toLocaleString()} {p.direction === "short" ? "short " : ""}in the {ROUTE_WORD[p.route]}
               </span>
               <span className={`badge ${v.tone}`}>{v.title}</span>
               <button className="drop" onClick={() => remove(p.id)} aria-label={`Remove ${p.ticker}`}>

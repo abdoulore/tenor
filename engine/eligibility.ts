@@ -21,6 +21,24 @@ export const ROUTE_LABELS: Record<RouteId, string> = {
   stockplus: "Stock+",
 };
 
+/**
+ * The name as it reads inside a sentence. Card headings say "Perpetual futures", but dropped
+ * into prose that becomes "Only one option works: the perpetual futures", which reads badly.
+ */
+export const ROUTE_NOUN: Record<RouteId, string> = {
+  rtoken: "tokenized stock",
+  perp: "perpetual",
+  stockplus: "Stock+",
+};
+
+/** "the tokenized stock", "the perpetual", "Stock+". */
+export const theRoute = (r: RouteId): string => (r === "stockplus" ? "Stock+" : `the ${ROUTE_NOUN[r]}`);
+/** Same, capitalised for the start of a sentence. */
+export const TheRoute = (r: RouteId): string => {
+  const t = theRoute(r);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 /** One line saying what each thing actually is, shown under the name. */
 export const ROUTE_BLURBS: Record<RouteId, string> = {
   rtoken: "Spot. You own a token tracking the share price. No leverage, no funding.",
@@ -93,7 +111,7 @@ export function checkEligibility(
     if (!cap.canShort) {
       return {
         eligible: false,
-        reason: `You cannot bet on a price falling with ${label.toLowerCase()}, because you have to own it first. Only the perpetual can do that.`,
+        reason: `You cannot bet on a price falling with ${theRoute(route)}, because you have to own it first. Only the perpetual can do that.`,
         unverified,
       };
     }
@@ -104,8 +122,8 @@ export function checkEligibility(
       eligible: false,
       reason:
         cap.maxLeverage === 1
-          ? `${label} is bought outright with your own money, so it cannot give you ${c.leverage} times the exposure.`
-          : `${label} goes up to ${cap.maxLeverage} times exposure, and you asked for ${c.leverage} times.`,
+          ? `${TheRoute(route)} is bought outright with your own money, so it cannot give you ${c.leverage}x.`
+          : `${TheRoute(route)} goes up to ${cap.maxLeverage}x, and you asked for ${c.leverage}x.`,
       unverified,
     };
   }
@@ -113,7 +131,7 @@ export function checkEligibility(
   if (c.wantsVoting && !cap.carriesVoting) {
     return {
       eligible: false,
-      reason: `${label} does not make you a shareholder, so it comes with no vote at company meetings.`,
+      reason: `${TheRoute(route)} does not make you a shareholder, so it comes with no vote at company meetings.`,
       unverified,
     };
   }
@@ -122,12 +140,12 @@ export function checkEligibility(
     if (cap.paysDividends === false) {
       return {
         eligible: false,
-        reason: `A ${label.toLowerCase()} follows the share price only, so it never pays you a dividend.`,
+        reason: `${TheRoute(route)} follows the share price only, so it never pays you a dividend.`,
         unverified,
       };
     }
     if (cap.paysDividends === null) {
-      unverified.push(`We have not confirmed whether ${label.toLowerCase()} pays dividends on Bitget.`);
+      unverified.push(`We have not confirmed whether ${theRoute(route)} pays dividends on Bitget.`);
     }
   }
 
@@ -135,12 +153,12 @@ export function checkEligibility(
     if (cap.usableAsCollateral === false) {
       return {
         eligible: false,
-        reason: `${label} cannot be used as collateral to borrow against.`,
+        reason: `${TheRoute(route)} cannot be used as collateral to borrow against.`,
         unverified,
       };
     }
     if (cap.usableAsCollateral === null) {
-      unverified.push(`We have not confirmed whether ${label.toLowerCase()} can be used as collateral on Bitget.`);
+      unverified.push(`We have not confirmed whether ${theRoute(route)} can be used as collateral on Bitget.`);
     }
   }
 
@@ -149,7 +167,7 @@ export function checkEligibility(
     if (!allowed.includes("overnight")) {
       return {
         eligible: false,
-        reason: `${label} only trades while US markets are open, so you could not sell it outside those hours.`,
+        reason: `${TheRoute(route)} only trades while US markets are open, so you could not sell it outside those hours.`,
         unverified,
       };
     }
@@ -158,7 +176,7 @@ export function checkEligibility(
   if (cap.tradableSessions !== "all" && !(cap.tradableSessions as Session[]).includes(session)) {
     return {
       eligible: false,
-      reason: `${label} is closed right now. It only trades while US markets are open.`,
+      reason: `${TheRoute(route)} is closed right now. It only trades while US markets are open.`,
       unverified,
     };
   }

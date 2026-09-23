@@ -608,6 +608,13 @@ group("monitor: should you move a position you already hold");
   check("holding the unfunded side, moving is never advised", onSpot.verdict !== "switch", onSpot.verdict);
   check("the funding it would take on is counted", (onSpot.switchFundingBp?.mid ?? 0) > 0);
 
+  // A short can only live on the perpetual, so it is never told to move to spot.
+  const short = analysePosition(position({ direction: "short" }), {
+    books, funding: settlements(30, 0.002), now: NOW,
+  });
+  check("a short is never told to move to the tokenized stock", short.verdict !== "switch", short.verdict);
+  check("a short says why it cannot move", /Only the perpetual can hold a short/.test(short.message), short.message);
+
   // The range has to survive into the recommendation.
   check("the saving is a range, not a point",
     costly.netSavingBp !== null && costly.netSavingBp.low <= costly.netSavingBp.mid

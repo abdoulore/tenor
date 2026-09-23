@@ -47,8 +47,53 @@ const INTENT_TOOL = {
  * path and built no functions at all until this was declared in vercel.json. The plainest
  * signature is the one least likely to be skipped again.
  */
+/*
+ * Who may call this, and how often.
+ *
+ * The endpoint spends money on every call, and it was reachable from any origin with no
+ * limit. Two layers, and neither is a substitute for a spend cap on the Anthropic account:
+ *
+ *   Origin   only the site itself. This stops other web pages from using it, not a script,
+ *            since a script can send any Origin header it likes.
+ *   Rate     per address, per warm instance. Serverless instances are short lived and not
+ *            shared, so this bounds a burst rather than a determined caller.
+ *
+ * The page falls back to its rules parser on any refusal, so a legitimate visitor who trips
+ * either one still gets a working product.
+ */
+const ALLOWED_ORIGINS = new Set([
+  "https://tenor-desk.vercel.app",
+  "https://tenor-nu-blush.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:4173",
+]);
+const WINDOW_MS = 60_000;
+const PER_ADDRESS = 12;
+const PER_INSTANCE = 120;
+const hits = new Map<string, number[]>();
+let instanceHits: number[] = [];
+
+function allowOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  // Preview deployments of this project only.
+  return /^https:\/\/tenor-[a-z0-9]+-oreapps\.vercel\.app$/.test(origin);
+}
+
+function underLimit(address: string, now: number): boolean {
+  instanceHits = instanceHits.filter((t) => now - t < WINDOW_MS);
+  if (instanceHits.length >= PER_INSTANCE) return false;
+  const mine = (hits.get(address) ?? []).filter((t) => now - t < WINDOW_MS);
+  if (mine.length >= PER_ADDRESS) { hits.set(address, mine); return false; }
+  mine.push(now);
+  hits.set(address, mine);
+  instanceHits.push(now);
+  if (hits.size > 5_000) hits.clear(); // never let the table grow without bound
+  return true;
+}
+
 export default async function handler(
-  req: { method?: string; body?: unknown },
+  req: { method?: string; body?: unknown; headers?: Record<string, string | string[] | undefined> },
   res: {
     status: (code: number) => typeof res;
     json: (body: unknown) => void;
@@ -57,6 +102,20 @@ export default async function handler(
 ): Promise<void> {
   if (req.method !== "POST") {
     res.status(405).json({ error: "POST only" });
+    return;
+  }
+
+  const header = (name: string): string | undefined => {
+    const v = req.headers?.[name];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  if (!allowOrigin(header("origin"))) {
+    res.status(403).json({ error: "origin not allowed" });
+    return;
+  }
+  const address = (header("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  if (!underLimit(address, Date.now())) {
+    res.status(429).json({ error: "too many requests" });
     return;
   }
 
