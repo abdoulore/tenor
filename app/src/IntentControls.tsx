@@ -26,6 +26,9 @@ export interface Draft {
   constraints: Constraints;
 }
 
+/** An edit to a draft. Constraints merge field by field, so a patch names only what changes. */
+export type DraftPatch = Omit<Partial<Draft>, "constraints"> & { constraints?: Partial<Constraints> };
+
 export const EMPTY_DRAFT: Draft = {
   ticker: "",
   notionalUsd: null,
@@ -74,7 +77,7 @@ export function IntentControls({
 }: {
   draft: Draft;
   groups: TickerGroups;
-  onChange: (patch: Partial<Draft> & { constraints?: Partial<Constraints> }) => void;
+  onChange: (patch: DraftPatch) => void;
   busy: boolean;
 }) {
   const isDead = groups.dead.includes(draft.ticker);

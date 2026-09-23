@@ -501,3 +501,36 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .share p { margin: 6px 0; font-size: 14px; line-height: 1.55; color: var(--muted); }
 .share strong { color: var(--text); }
 .share .dim { color: var(--dim); }
+
+/* ---------------------------------------------------------------- in plain words */
+
+.talk {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 18px; margin: 18px 0 10px;
+}
+.talk h3 { margin: 0 0 8px; font-size: 16px; }
+.talk-feed { display: flex; flex-direction: column; gap: 12px; }
+.talk-entry p { margin: 0; }
+.talk-q { font-size: 14px; color: var(--text); font-weight: 600; margin-bottom: 4px !important; }
+.talk-about { font-size: 12px; color: var(--dim); font-family: var(--mono); margin-bottom: 4px !important; }
+.talk-a { font-size: 15px; line-height: 1.6; color: var(--muted); }
+.talk-entry.explained .talk-a { color: var(--text); }
+.talk-a.repriced { color: var(--good); font-size: 14px; }
+.talk-a.withheld { color: var(--warn); font-size: 14px; }
+.talk-a.dim { color: var(--dim); font-size: 14px; }
+.talk-ask { display: flex; gap: 8px; margin: 14px 0 4px; }
+.talk-ask input {
+  flex: 1; min-width: 0; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: var(--sans);
+}
+.talk-ask input:focus { outline: none; border-color: var(--rtoken); }
+.talk-ask button {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 16px; font-size: 14px; cursor: pointer;
+}
+.talk-ask button:disabled { opacity: 0.5; cursor: default; }
+.talk .followups { margin: 10px 0 0; }
+.linklike {
+  background: none; border: none; padding: 0; color: var(--rtoken); cursor: pointer;
+  font: inherit; text-decoration: underline;
+}

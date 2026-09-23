@@ -88,8 +88,16 @@ Alongside the price it shows the share itself: its real price against the token'
 dividend and earnings report, from Bitget's market data service. Future dates are projected from
 each company's own past dates and labelled as projected.
 
-The cost engine is **deterministic**. No model touches any number a user sees. An LLM reads
-your sentence into the form fields and nothing else, which is stated on the page.
+The cost engine is **deterministic**. No model works out any number a user sees. Claude
+Sonnet 5 does two things: reads a sentence into the form fields, and explains each result in
+two or three sentences and answers questions about it. For the explanation, the engine writes a
+fact sheet of every figure on the page, and the model may only use figures from it. The page
+then checks every number in the answer against the sheet. An answer with a figure the engine
+did not produce is sent back once with that figure named, and withheld if it fails again. In
+testing, asked what the two fees add up to, the model wrote a total the engine had never
+computed; the check caught it and the retry answered without it. A question the sheet cannot
+answer, such as "what if I held three months", comes back as a request to price again, and the
+engine prices it.
 
 ### Data sources
 
@@ -106,10 +114,10 @@ All public Bitget endpoints, no account required to run this:
 
 | Directory | What it is |
 |---|---|
-| `engine/` | The cost engine. Deterministic, dependency free, 210 offline tests. |
+| `engine/` | The cost engine. Deterministic, dependency free, 226 offline tests. |
 | `sampler/` | Continuous order book sampler. Zero dependencies, plain `.mjs`. |
 | `app/` | Vite + React front end. Static, calls Bitget directly from the browser. |
-| `api/` | Two serverless functions: intent parsing, so the model key never reaches the browser, and share data from Bitget's market data service. |
+| `api/` | Three serverless functions: intent parsing and questions about a result, so the model key never reaches the browser, and share data from Bitget's market data service. |
 | `ops/` | Backup, outlook builder, receipts scorer, session analysis. |
 | `canary/` | The kill test that decided whether to build this at all. |
 
@@ -118,7 +126,7 @@ All public Bitget endpoints, no account required to run this:
 Node 20 or later. The engine and sampler have **no dependencies** and no build step.
 
 ```bash
-node engine/selftest.ts          # 210 tests, offline, no network
+node engine/selftest.ts          # 226 tests, offline, no network
 node engine/demo.ts              # price five tickers against live books
 node sampler/sample.mjs --once   # one sampling cycle
 node ops/receipts.mjs            # score the prediction log

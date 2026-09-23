@@ -17,6 +17,7 @@ import { predictionFile, toRecord } from "./predictions.ts";
 import { analysePosition, daysRemaining, type Position } from "./monitor.ts";
 import { planSplit } from "./split.ts";
 import { dividendYieldPct, premiumBp, projectNext, shareOutlook, withinHorizon } from "./equity.ts";
+import { factSheet, plainText, sessionHoursIn, ungroundedNumbers } from "./grounding.ts";
 import { DEFAULT_CONSTRAINTS, type Book, type Intent, type SessionOutlook } from "./types.ts";
 
 let failures = 0;
@@ -764,6 +765,50 @@ group("the underlying share: premium, dividends, earnings");
   check("the outlook carries the premium", out.premiumBp !== null && out.premiumBp > 0);
   check("a 90 day hold catches the next quarterly dividend", out.nextDividend?.inHorizon === true, JSON.stringify(out.nextDividend));
   check("no earnings history means no earnings claim", out.nextEarnings === null);
+}
+
+// ---------------------------------------------------------------- keeping the model to the engine's numbers
+
+group("the explanation may only use the engine's figures");
+{
+  const books = { rtoken: makeBook(2, 1_000), perp: makeBook(6, 1_000) };
+  const q = priceIntent(intent(), { session: "regular", books, funding: settlements(30, 0.0001), now: NOW });
+  const sheet = factSheet(q, { timeZone: "America/New_York" });
+  const rt = q.routes.find((r) => r.route === "rtoken")!;
+  const rtDollars = ((rt.totalBp!.mid / 10_000) * 2_000).toFixed(2);
+
+  check("the sheet carries each priced route's total in dollars", sheet.text.includes(`$${rtDollars}`), sheet.text);
+  check("the sheet states the verdict", /Verdict: use the tokenized stock/.test(sheet.text), sheet.text);
+  check("the sheet gives session hours in the reader's time", /US market hours 09:30 to 16:00/.test(sheet.text));
+
+  check("a figure copied from the sheet passes",
+    ungroundedNumbers(`The tokenized stock costs $${rtDollars} in total.`, sheet).length === 0);
+  check("a figure rounded to fewer places passes",
+    ungroundedNumbers(`About $${Math.round(Number(rtDollars))} in total.`, sheet).length === 0);
+  check("an invented figure is caught",
+    ungroundedNumbers("You would save $123.45 by waiting.", sheet).join() === "123.45");
+  check("a figure worked out from two on the sheet is caught",
+    ungroundedNumbers(`Together that is $${(Number(rtDollars) * 2 + 0.01).toFixed(2)}.`, sheet).length === 1);
+  check("a number the reader typed may be repeated back",
+    ungroundedNumbers("At 3am it is overnight.", sheet, "what about at 3am?").length === 0);
+  check("without the question the same number is caught",
+    ungroundedNumbers("At 3am it is overnight.", sheet).join() === "3");
+  check("thousands separators are read as one number",
+    ungroundedNumbers("On $2,000 of NVDA.", sheet).length === 0);
+  check("a sentence ending in a number keeps its figure", ungroundedNumbers("It is 30.", sheet).length === 0);
+
+  check("dashes used as punctuation become commas",
+    plainText(`Cheaper ${String.fromCharCode(0x2014)} by a lot.`) === "Cheaper, by a lot.");
+  check("a dash between two figures becomes 'to'",
+    plainText(`$1.20${String.fromCharCode(0x2013)}$3.40`) === "$1.20 to $3.40");
+  check("markdown emphasis is dropped", plainText("**Use the perpetual.**") === "Use the perpetual.");
+
+  check("session hours follow the reader's zone",
+    sessionHoursIn("Africa/Lagos", new Date("2026-09-16T12:00:00Z")).startsWith("pre-market 09:00 to 14:30"));
+  check("session hours follow daylight saving",
+    sessionHoursIn("Europe/London", new Date("2026-11-03T12:00:00Z")).startsWith("pre-market 09:00 to 14:30") &&
+    sessionHoursIn("Europe/London", new Date("2026-09-16T12:00:00Z")).startsWith("pre-market 09:00 to 14:30") &&
+    sessionHoursIn("Europe/London", new Date("2026-10-28T12:00:00Z")).startsWith("pre-market 08:00 to 13:30"));
 }
 
 // ---------------------------------------------------------------- prediction log

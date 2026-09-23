@@ -14,28 +14,40 @@ import type { Session } from "../../engine/types.ts";
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
 
+export type ShareState = { facts: Facts | null; state: "loading" | "ready" | "error" };
+
+/**
+ * One read per company. The panel below and the explanation both use it, so they can never
+ * describe different data. Nothing is fetched until there is a company to fetch for.
+ */
+export function useShareFacts(ticker: string | null): ShareState {
+  const [out, setOut] = useState<ShareState>({ facts: null, state: "loading" });
+
+  useEffect(() => {
+    if (!ticker) return;
+    let live = true;
+    setOut({ facts: null, state: "loading" });
+    fetch(`/api/equity?symbol=${encodeURIComponent(ticker)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((j) => { if (live) setOut({ facts: j, state: "ready" }); })
+      .catch(() => { if (live) setOut({ facts: null, state: "error" }); });
+    return () => { live = false; };
+  }, [ticker]);
+
+  return out;
+}
+
 export function ShareFacts({
-  ticker, tokenMid, horizonDays, notional, session,
+  ticker, share, tokenMid, horizonDays, notional, session,
 }: {
   ticker: string;
+  share: ShareState;
   tokenMid: number | null;
   horizonDays: number;
   notional: number;
   session: Session;
 }) {
-  const [facts, setFacts] = useState<Facts | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-
-  useEffect(() => {
-    let live = true;
-    setState("loading");
-    setFacts(null);
-    fetch(`/api/equity?symbol=${encodeURIComponent(ticker)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((j) => { if (live) { setFacts(j); setState("ready"); } })
-      .catch(() => { if (live) setState("error"); });
-    return () => { live = false; };
-  }, [ticker]);
+  const { facts, state } = share;
 
   if (state === "loading") return <section className="share"><p className="note">Reading the share price from Bitget&hellip;</p></section>;
   if (state === "error" || !facts) {

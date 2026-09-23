@@ -5,7 +5,8 @@
  * for how long. The break-even tab only appears when the horizon genuinely decides, which
  * the prediction log says is about 5% of calls.
  *
- * Every number here comes from the deterministic engine. Nothing on this page is generated.
+ * Every number here comes from the deterministic engine. The explanation under the result is
+ * written by a model, from the engine's figures, and is withheld if it contains any other figure.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -24,12 +25,15 @@ import type { Settlement } from "../../engine/funding.ts";
 import { getParser } from "./parse.ts";
 import outlookData from "./data/outlook.json";
 import {
-  IntentControls, EMPTY_DRAFT, isComplete, type Draft, type TickerGroups,
+  IntentControls, EMPTY_DRAFT, isComplete, type Draft, type DraftPatch, type TickerGroups,
 } from "./IntentControls.tsx";
 import { Monitor } from "./Monitor.tsx";
 import { Receipts } from "./Receipts.tsx";
 import { SplitCard } from "./SplitCard.tsx";
-import { ShareFacts } from "./ShareFacts.tsx";
+import { ShareFacts, useShareFacts } from "./ShareFacts.tsx";
+import { Conversation } from "./Conversation.tsx";
+import { factSheet } from "../../engine/grounding.ts";
+import { shareOutlook } from "../../engine/equity.ts";
 import { planSplit, type SplitPlan } from "../../engine/split.ts";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
@@ -353,7 +357,7 @@ export default function App() {
    * gets priced, and the sentence above is only how it started. Changing the company is the
    * one edit that needs fresh prices from Bitget.
    */
-  const edit = useCallback((patch: Partial<Draft> & { constraints?: Partial<Constraints> }) => {
+  const edit = useCallback((patch: DraftPatch) => {
     setDraft((prev) => ({
       ...prev,
       ...patch,
@@ -424,6 +428,31 @@ export default function App() {
   );
   const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.ticker, intent.notionalUsd)) : null;
   const coverage = (outlookData as OutlookFile).coverage;
+
+  const share = useShareFacts(asked && intent ? intent.ticker : null);
+  const tokenMid = quote?.routes.find((r) => r.route === "rtoken")?.execution?.mid ?? null;
+  const shareOut = useMemo(
+    () => (share.facts && intent ? shareOutlook(share.facts, tokenMid, Date.now(), intent.horizonDays) : null),
+    [share.facts, tokenMid, intent],
+  );
+  /*
+   * What the explanation may say, written by the engine. Built from the same quote, split and
+   * share data as the cards, so the words and the cards cannot disagree.
+   */
+  const sheet = useMemo(
+    () => (quote && intent
+      ? factSheet(quote, {
+          split,
+          share: shareOut,
+          sharePrice: share.facts?.price?.last ?? null,
+          sessionSize: nearestSize(intent.ticker, intent.notionalUsd),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        })
+      : null),
+    [quote, intent, split, shareOut, share.facts],
+  );
+  // A new result to explain: a different question, or a fresh read of the prices.
+  const sig = intent ? `${JSON.stringify(intent)}|${fetchedAt}` : "";
 
   return (
     <div className="page">
@@ -563,7 +592,8 @@ export default function App() {
               {split && <SplitCard plan={split} />}
               <ShareFacts
                 ticker={intent.ticker}
-                tokenMid={quote.routes.find((r) => r.route === "rtoken")?.execution?.mid ?? null}
+                share={share}
+                tokenMid={tokenMid}
                 horizonDays={intent.horizonDays}
                 notional={intent.notionalUsd}
                 session={session}
@@ -595,22 +625,34 @@ export default function App() {
             <BreakEven quote={quote} funding={funding} intervalHours={pair?.fundingIntervalHours ?? 8} />
           )}
 
-          <section className="followups">
-            <span className="label">What if</span>
-            <button onClick={() => edit({ horizonDays: 7 })}>I only hold a week</button>
-            <button onClick={() => edit({ horizonDays: 90 })}>I hold three months</button>
-            <button onClick={() => edit({ notionalUsd: intent.notionalUsd * 5 })}>
-              I put in five times as much
-            </button>
-            <button
-              onClick={() => {
-                const direction = intent.direction === "long" ? "short" : "long";
-                edit({ direction, constraints: { needsShort: direction === "short" } });
-              }}
+          {sheet && (
+            <Conversation
+              sheet={sheet}
+              current={intent}
+              sig={sig}
+              about={`$${intent.notionalUsd.toLocaleString()} of ${intent.ticker}, ${intent.direction}, held ${intent.horizonDays} days`}
+              ready={status !== "loading" && share.state !== "loading"}
+              tickers={tickers}
+              onReprice={edit}
             >
-              I bet the other way
-            </button>
-          </section>
+              <div className="followups">
+                <span className="label">What if</span>
+                <button onClick={() => edit({ horizonDays: 7 })}>I only hold a week</button>
+                <button onClick={() => edit({ horizonDays: 90 })}>I hold three months</button>
+                <button onClick={() => edit({ notionalUsd: intent.notionalUsd * 5 })}>
+                  I put in five times as much
+                </button>
+                <button
+                  onClick={() => {
+                    const direction = intent.direction === "long" ? "short" : "long";
+                    edit({ direction, constraints: { needsShort: direction === "short" } });
+                  }}
+                >
+                  I bet the other way
+                </button>
+              </div>
+            </Conversation>
+          )}
 
           <section className="warnings">
             {quote.warnings
@@ -633,7 +675,8 @@ export default function App() {
 
       <footer>
         Every price here is read live from Bitget and worked out with ordinary arithmetic.
-        The AI only reads your sentence. It never produces a number you see.
+        The AI reads your sentence and explains the result. It never works out a number: any
+        answer with a figure the engine did not produce is not shown.
         Fees used: {pctOf(roundTripFeeBp("rtoken", DEFAULT_FEES))} to buy and sell the tokenized stock,
         {" "}{pctOf(roundTripFeeBp("perp", DEFAULT_FEES))} for the futures contract.
       </footer>
