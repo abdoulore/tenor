@@ -28,6 +28,8 @@ import {
 } from "./IntentControls.tsx";
 import { Monitor } from "./Monitor.tsx";
 import { Receipts } from "./Receipts.tsx";
+import { SplitCard } from "./SplitCard.tsx";
+import { planSplit, type SplitPlan } from "../../engine/split.ts";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
 
@@ -411,6 +413,14 @@ export default function App() {
   }, [intent, loadMarket]);
 
   const tickerGroups = useMemo(() => groupTickers(tickers), [tickers]);
+  /*
+   * The split reuses the quote's own fees and funding and the same live books, so it can never
+   * disagree with the prices on the cards above it.
+   */
+  const split = useMemo(
+    () => (quote && books ? planSplit(quote, { rtoken: books.spot, perp: books.perp }) : null),
+    [quote, books],
+  );
   const outlook = intent ? outlookFor(intent.ticker, nearestSize(intent.ticker, intent.notionalUsd)) : null;
   const coverage = (outlookData as OutlookFile).coverage;
 
@@ -537,7 +547,7 @@ export default function App() {
 
           {tab === "routes" && (
             <section className="routes">
-              <Verdict quote={quote} notional={intent.notionalUsd} />
+              <Verdict quote={quote} notional={intent.notionalUsd} split={split} />
               {quote.routes.map((r) => (
                 <RouteCard
                   key={r.route}
@@ -549,6 +559,7 @@ export default function App() {
                   symbol={r.route === "rtoken" ? pair?.spotSymbol : r.route === "perp" ? pair?.perpSymbol : undefined}
                 />
               ))}
+              {split && <SplitCard plan={split} />}
               {(["rtoken", "perp"] as const).map((route) => {
                 const b = outlook ? betterSession(outlook[route], session) : null;
                 return b ? (
@@ -594,7 +605,10 @@ export default function App() {
           </section>
 
           <section className="warnings">
-            {quote.warnings.map((w) => <div key={w} className="warn-line">{w}</div>)}
+            {quote.warnings
+              // A split that fills the order disproves "none of the three will work".
+              .filter((w) => !(split?.worthIt && split.bestSingle === null && /None of the three ways/.test(w)))
+              .map((w) => <div key={w} className="warn-line">{w}</div>)}
             {fetchedAt && (
               <div className="warn-line">
                 {fellBackAt !== null
@@ -623,10 +637,20 @@ function Chip({ k, v, found }: { k: string; v: string; found: boolean }) {
   return <span className={`chip ${found ? "found" : "assumed"}`}><em>{k}</em> {v}</span>;
 }
 
-function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
+function Verdict({ quote, notional, split }: { quote: Quote; notional: number; split: SplitPlan | null }) {
   const best = quote.routes.find((r) => r.rank === 1);
   const second = quote.routes.find((r) => r.rank === 2);
   const dead = quote.routes.find((r) => r.route !== "stockplus" && r.status === "no_book");
+
+  // Too big for either book alone, but fillable across both. Saying "no way" would be false.
+  if (!best && split?.worthIt && split.bestSingle === null) {
+    return (
+      <div className="verdict only">
+        <strong>Neither can take all ${notional.toLocaleString()} alone. Split it across both.</strong>
+        <span>The split below fills the whole order from the two live books together.</span>
+      </div>
+    );
+  }
 
   if (!best) {
     return (

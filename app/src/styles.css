@@ -469,3 +469,24 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
   background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 9px; font-size: 14px; font-family: var(--sans); color-scheme: dark;
 }
+
+/* ---------------------------------------------------------------- order splitting */
+
+.split {
+  background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--good);
+  border-radius: 10px; padding: 16px 18px; margin: 14px 0 10px;
+}
+.split-head { display: flex; align-items: center; gap: 10px; }
+.split-head h3 { margin: 0; font-size: 17px; }
+.split-main { margin: 10px 0 4px; font-size: 16px; }
+.split-save { margin: 0 0 12px; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.split-save strong, .split-main strong { color: var(--text); font-family: var(--mono); }
+.split-range { color: var(--dim); }
+.split-bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; margin-bottom: 12px; font-size: 12px; font-family: var(--mono); }
+.split-bar .seg { display: flex; align-items: center; justify-content: center; color: #0b0d10; font-weight: 700; white-space: nowrap; }
+.split-bar .seg.perp { background: var(--perp); }
+.split-bar .seg.rtoken { background: var(--rtoken); }
+.split svg { width: 100%; height: auto; display: block; }
+.split-line { fill: none; stroke: var(--text); stroke-width: 2.5; stroke-linejoin: round; opacity: 0.85; }
+.split-dot { fill: var(--good); }
+.split-none { font-size: 13px; color: var(--dim); margin: 10px 0; padding: 10px 14px; background: var(--panel); border-radius: 8px; }

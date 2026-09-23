@@ -15,6 +15,7 @@ import { crossoverDays, projectFunding, quantile, trailingDailyFunding, type Set
 import { betterSession, priceIntent } from "./engine.ts";
 import { predictionFile, toRecord } from "./predictions.ts";
 import { analysePosition, daysRemaining, type Position } from "./monitor.ts";
+import { planSplit } from "./split.ts";
 import { DEFAULT_CONSTRAINTS, type Book, type Intent, type SessionOutlook } from "./types.ts";
 
 let failures = 0;
@@ -631,6 +632,69 @@ group("monitor: should you move a position you already hold");
     });
     return strict.verdict !== "switch";
   })());
+}
+
+// ---------------------------------------------------------------- order splitting
+
+group("splitting a large order across the two wrappers");
+{
+  const flat = settlements(30, 0);
+  const quoteFor = (books: { rtoken: Book; perp: Book }, over: Partial<Intent> = {}, funding = flat) =>
+    priceIntent(intent(over), { session: "regular", books, funding, now: NOW });
+
+  // Deep books and a small order: one wrapper is simply cheaper, so no split.
+  const deep = { rtoken: makeBook(2, 1_000), perp: makeBook(2, 1_000) };
+  const small = planSplit(quoteFor(deep), deep);
+  check("a small order on deep books is not split", small.applicable && !small.worthIt, JSON.stringify({ w: small.worthIt, s: small.perpShare }));
+
+  // Two thin books: walking deep into either one is expensive, so sharing the order is cheaper.
+  const thin = { rtoken: makeBook(2, 1, 60), perp: makeBook(2, 1, 60) };
+  const big = planSplit(quoteFor(thin, { notionalUsd: 3_000 }), thin);
+  check("a large order on two thin books is split", big.worthIt, JSON.stringify({ share: big.perpShare, save: big.savingUsd }));
+  check("the split lands between the extremes", big.perpShare > 0.2 && big.perpShare < 0.8, `${big.perpShare}`);
+  check("the two parts add up to the order", near(big.perpUsd + big.tokenUsd, 3_000, 0.02));
+  check("the saving is stated in dollars", big.savingUsd > 0);
+
+  // A deep perpetual and a thin token: most of the order should go where the depth is.
+  const lopsided = { rtoken: makeBook(2, 1, 60), perp: makeBook(2, 1_000) };
+  const lean = planSplit(quoteFor(lopsided, { notionalUsd: 3_000 }), lopsided);
+  check("most of the order goes to the deeper book", lean.perpShare >= 0.8, `${lean.perpShare}`);
+
+  // The invariant the feature rests on: a split never costs more than the best single route.
+  check("the best split never costs more than the best single route", (() => {
+    for (const n of [500, 2_000, 3_000, 5_000]) {
+      for (const bk of [deep, thin, lopsided]) {
+        const plan = planSplit(quoteFor(bk, { notionalUsd: n }), bk);
+        if (plan.applicable && plan.bestSingle && plan.totalUsd > plan.bestSingle.totalUsd + 0.01) return false;
+      }
+    }
+    return true;
+  })());
+
+  // The chart has to agree with the single-route prices at its two ends.
+  const ends = planSplit(quoteFor(thin, { notionalUsd: 2_000 }), thin);
+  const allPerp = ends.curve[ends.curve.length - 1];
+  const allToken = ends.curve[0];
+  check("the chart runs from all tokenized to all perpetual", allToken.perpShare === 0 && allPerp.perpShare === 1);
+
+  // Expensive funding makes the perpetual side costlier to hold, so less of the order goes there.
+  const cheapFund = planSplit(quoteFor(thin, { notionalUsd: 3_000 }), thin);
+  const dearFund = planSplit(quoteFor(thin, { notionalUsd: 3_000 }, settlements(30, 0.001)), thin);
+  check("costly funding moves the split toward the tokenized stock",
+    dearFund.perpShare < cheapFund.perpShare, `${dearFund.perpShare} vs ${cheapFund.perpShare}`);
+
+  // No split where one side cannot be priced or cannot express the view.
+  const noDepth = { rtoken: EMPTY_BOOK, perp: makeBook(2, 1_000) };
+  const blocked = planSplit(quoteFor(noDepth), noDepth);
+  check("no split when one side has no published depth", !blocked.applicable && blocked.reason !== null);
+  const short = planSplit(quoteFor(deep, { direction: "short", constraints: { ...DEFAULT_CONSTRAINTS, needsShort: true } }), deep);
+  check("a short is never split, since only the perpetual can hold it", !short.applicable);
+
+  // When neither wrapper can take the whole order alone, splitting is the only way to fill it.
+  const tiny = { rtoken: makeBook(2, 1, 12), perp: makeBook(2, 1, 12) };
+  const forced = planSplit(quoteFor(tiny, { notionalUsd: 2_000 }), tiny);
+  check("a split can fill what neither book can alone", forced.applicable && forced.bestSingle === null && forced.worthIt,
+    JSON.stringify({ a: forced.applicable, s: forced.bestSingle, w: forced.worthIt }));
 }
 
 // ---------------------------------------------------------------- prediction log

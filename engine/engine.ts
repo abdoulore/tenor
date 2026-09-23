@@ -191,11 +191,26 @@ function priceRoute(
   }
   if (exec && exec.roundTripBp === null && !hasOverride) {
     const canTake = absorbable(book!);
+    /*
+     * Fee and funding do not depend on size, so they are recorded even when this book cannot
+     * take the whole order. The order can still be split across both wrappers, and the split
+     * needs them. Execution and the total stay empty, because at this size there is no price.
+     */
+    const partialFunding = route === "perp"
+      ? projectFunding(inputs.funding ?? [], intent.horizonDays, intent.direction, {
+          atMs: now,
+          intervalHours: inputs.fundingIntervalHours ?? 8,
+        }).bp
+      : { low: 0, mid: 0, high: 0 };
     return {
       ...base,
       status: "cannot_fill",
       execution: exec,
       absorbableUsd: canTake,
+      feeBp: round(roundTripFeeBp(route, fees), 4),
+      feeProvenance: feeLegFor(route, fees).provenance,
+      feeSource: feeLegFor(route, fees).source,
+      fundingBp: partialFunding,
       reason:
         `Only about $${canTake.toLocaleString()} of ${theRoute(route)} is on offer, ` +
         `and you asked for $${intent.notionalUsd.toLocaleString()}. You would move the price against yourself.`,
