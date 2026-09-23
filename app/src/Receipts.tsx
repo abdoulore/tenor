@@ -23,7 +23,8 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
   // The same call changing several times is one finding, so repeats are grouped with a count.
   const flipGroups = (() => {
     const m = new Map<string, { key: string; ticker: string; size: number; said: string; became: string; times: number; gaps: number[] }>();
-    for (const f of r.flips) {
+    type Flip = { ticker: string; size: number; said: string; became: string; gapBp: number };
+    for (const f of r.flips as unknown as Flip[]) {
       const key = `${f.ticker}|${f.size}|${f.said}|${f.became}`;
       const g = m.get(key) ?? { key, ticker: f.ticker, size: f.size, said: f.said, became: f.became, times: 0, gaps: [] };
       g.times++;
@@ -36,9 +37,14 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
   })();
   // Present once the report has been regenerated with the source of each call.
   const sources = (r as unknown as { sources?: { book: number; quote: number } }).sources;
-  const first = acc[0];
-  const last = acc[acc.length - 1];
-  const hour = r.stability.find((s) => s.lagMinutes === 60) ?? r.stability[0];
+  // A lag is only shown once enough time has passed for it to have been checked.
+  const shownAcc = acc.filter((a) => a.checks > 0);
+  const shownStab = r.stability.filter((s) => s.checks > 0);
+  const first = shownAcc[0] ?? acc[0];
+  const last = shownAcc[shownAcc.length - 1] ?? acc[acc.length - 1];
+  const lastLabel = last.lagMinutes < 60 ? `${last.lagMinutes} minutes` : `${last.lagMinutes / 60} hour${last.lagMinutes > 60 ? "s" : ""}`;
+  const hour = r.stability.find((s) => s.lagMinutes === 60 && s.checks > 0)
+    ?? r.stability.find((s) => s.checks > 0) ?? r.stability[0];
   const money = (bp: number) => `$${((bp / 10_000) * notional).toFixed(2)}`;
 
 
@@ -52,9 +58,9 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
       </p>
 
       <div className="rnotice">
-        <strong>How the tokenized stock is priced.</strong> Since 23 September Tenor prices the
-        tokenized stock from Bitget's live quote, the price its orders fill at, confirmed by the
-        live test orders below. Calls before then priced it from the order book.
+        <strong>How the tokenized stock is priced.</strong> Tenor prices the tokenized stock from
+        Bitget's live quote, the price its orders fill at, confirmed by the live test orders below.
+        This record covers every call made on that basis, since 23 September.
       </div>
 
       <h3>The test orders</h3>
@@ -101,7 +107,7 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         </div>
         <div className="rcard">
           <span className="rlabel">Funding forecasts</span>
-          <strong>Day {Math.floor(r.funding.elapsedDays)} of 30</strong>
+          <strong>Day {Math.max(1, Math.ceil(r.funding.elapsedDays))} of 30</strong>
           <span className="rnote">
             Each call projects funding over 30 days. They are scored as they complete.
           </span>
@@ -118,7 +124,7 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
           <tr><th>If you acted</th><th>Checks</th><th>Typical miss</th><th>Still within {money(5)}</th></tr>
         </thead>
         <tbody>
-          {acc.map((a) => (
+          {shownAcc.map((a) => (
             <tr key={a.lagMinutes}>
               <td>{a.lagMinutes < 60 ? `${a.lagMinutes} minutes later` : `${a.lagMinutes / 60} hour${a.lagMinutes > 60 ? "s" : ""} later`}</td>
               <td>{fmt(a.checks)}</td>
@@ -129,9 +135,11 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         </tbody>
       </table>
       <p className="sub">
-        The miss grows from {money(first.medianAbsErrorBp ?? 0)} to{" "}
-        {money(last.medianAbsErrorBp ?? 0)} over four hours, and the average error is about
-        zero throughout, so the quotes are not drifting in one direction. They simply age.
+        {(last.medianAbsErrorBp ?? 0) > (first.medianAbsErrorBp ?? 0) + 0.25
+          ? <>The miss grows from {money(first.medianAbsErrorBp ?? 0)} to {money(last.medianAbsErrorBp ?? 0)} over {lastLabel}</>
+          : <>The miss stays around {money(first.medianAbsErrorBp ?? 0)} over {lastLabel}</>}
+        , and the average error is about zero throughout, so the quotes are not biased in either
+        direction.
       </p>
 
       <h3>Would it still say the same thing</h3>
@@ -140,7 +148,7 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
           <tr><th>Replayed</th><th>Calls</th><th>Same answer</th><th>Changed</th></tr>
         </thead>
         <tbody>
-          {r.stability.map((s) => (
+          {shownStab.map((s) => (
             <tr key={s.lagMinutes}>
               <td>{s.lagMinutes < 60 ? `${s.lagMinutes} minutes later` : `${s.lagMinutes / 60} hour${s.lagMinutes > 60 ? "s" : ""} later`}</td>
               <td>{fmt(s.checks)}</td>

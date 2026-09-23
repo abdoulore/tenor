@@ -131,7 +131,15 @@ function outagesFor(keys, index) {
 }
 
 async function main() {
-  const predictions = await readNdjson(PRED_DIR, "predictions-");
+  /*
+   * The record covers calls made on the current pricing: the tokenized stock priced from Bitget's
+   * quote, which is what its orders fill at. Earlier calls priced it from the order book and stay
+   * in the log files, but they describe a method Tenor no longer uses, so they are not scored
+   * here. --all scores every call regardless.
+   */
+  const logged = await readNdjson(PRED_DIR, "predictions-");
+  const onQuote = (p) => p.routes.some((r) => r.route === "rtoken" && r.source === "quote");
+  const predictions = process.argv.includes("--all") ? logged : logged.filter(onQuote);
   const samples = await readNdjson(DATA_DIR, "samples-");
   if (!predictions.length) throw new Error(`no predictions in ${PRED_DIR}`);
   const index = indexSamples(samples);

@@ -55,19 +55,18 @@ derivable from the other. Order numbers are in [`engine/fees.ts`](engine/fees.ts
 
 ## Track record
 
-Every recommendation is written down the moment it is made, before the answer is knowable.
-**39,509 logged so far.** Scored against the continuous sampling:
+Every recommendation is written down the moment it is made, before the answer is knowable, and
+scored against the continuous sampling. The record covers every call made with the tokenized
+stock priced from its quote, since 23 September; **720 so far**, growing by about 290 an hour.
 
 | If you acted | Checks | Typical miss on $2,000 | Still within $1.00 |
 |---|---|---|---|
-| 5 minutes later | 49,367 | $0.26 | 78.5% |
-| 1 hour later | 48,632 | $0.41 | 71.1% |
-| 4 hours later | 47,137 | $0.51 | 66.4% |
+| 5 minutes later | 1,035 | $0.18 | 84.6% |
+| 1 hour later | 627 | $0.17 | 82.6% |
 
-Median error is about zero at every lag, so the quotes are not biased, they simply age.
-Replayed on later prices, 90% of recommendations still hold an hour later and 87% after four.
-Every call that changed is listed in the app. Funding forecasts run 30 days and are scored as
-they complete. Since 23 September the tokenized stock in these calls is priced from its quote.
+Median error is about zero at every lag, so the quotes are not biased. Replayed on prices an
+hour later, 100% of recommendations still hold. Funding forecasts run 30 days and are scored
+as they complete. The live figures are on the app's track record page.
 
 ## How it works
 
