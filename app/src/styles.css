@@ -543,3 +543,7 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 }
 .rnotice strong { color: var(--text); }
 .rtable .oid { display: block; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+.flips-more { margin: 8px 0 18px; }
+.flips-more summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.flips-more summary:hover { color: var(--text); }

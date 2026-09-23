@@ -220,7 +220,7 @@ async function main() {
   // only thing that moves is execution. That isolates the question a user actually cares
   // about: if I had come back an hour later, would you still tell me the same thing.
   const stability = {};
-  for (const lag of LAGS) stability[lag] = { n: 0, held: 0, flips: [] };
+  for (const lag of LAGS) stability[lag] = { n: 0, held: 0, flips: [], gaps: [] };
 
   for (const p of predictions) {
     if (!p.route) continue;
@@ -244,7 +244,8 @@ async function main() {
       const st = stability[lag];
       st.n++;
       if (replayed[0].route === p.route) st.held++;
-      else if (st.flips.length < 40) {
+      else st.gaps.push(Math.abs(replayed[0].total - replayed[1].total));
+      if (replayed[0].route !== p.route && st.flips.length < 40) {
         st.flips.push({
           ticker: p.ticker, at: p.at, size: p.notionalUsd,
           said: p.route, became: replayed[0].route,
@@ -260,6 +261,9 @@ async function main() {
     checks: stability[lag].n,
     heldPct: pct(stability[lag].held, stability[lag].n),
     flipped: stability[lag].n - stability[lag].held,
+    /* How far apart the two options were when a call changed. Small means it only changed
+       where the choice barely mattered. */
+    medianFlipGapBp: round(median(stability[lag].gaps), 3),
   }));
 
   // ------------------------------------------------------------ assembly

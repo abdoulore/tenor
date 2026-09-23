@@ -151,12 +151,19 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         </tbody>
       </table>
 
-      {r.flips.length > 0 && (
-        <>
-          <h3>The ones that changed</h3>
+      {(() => {
+        const gap = (hour as { medianFlipGapBp?: number | null }).medianFlipGapBp;
+        return typeof gap === "number" ? (
           <p className="sub">
-            The calls that would have been different an hour later.
+            When a call did change an hour later, following the original call would have cost a
+            median <strong>{money(gap)}</strong> more on ${fmt(notional)}.
           </p>
+        ) : null;
+      })()}
+
+      {flipGroups.length > 0 && (
+        <details className="flips-more">
+          <summary>Show the calls that changed</summary>
           <table className="rtable flips">
             <thead>
               <tr><th>Company</th><th>Size</th><th>We said</th><th>An hour later</th><th>Times</th><th>Typical gap</th></tr>
@@ -174,11 +181,7 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
               ))}
             </tbody>
           </table>
-          <p className="sub">
-            Most are thinly traded names where the two options sit within cents of each other, so
-            ordinary price movement is enough to swap them.
-          </p>
-        </>
+        </details>
       )}
 
 
