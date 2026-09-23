@@ -90,14 +90,22 @@ function sampleAt(index, ticker, targetMs) {
   return bestGap <= TOLERANCE_MS ? best : null;
 }
 
-const legOf = (sample, route) => (route === "rtoken" ? sample.spot : sample.perp);
-const costAt = (sample, route, size) => {
-  const leg = legOf(sample, route);
+/*
+ * A call is checked against the same kind of price it was made from. From 23 September the
+ * tokenized stock is priced from Bitget's quote, which is what its orders fill at, so those
+ * calls are checked against later quotes. Older calls priced it from the order book and are
+ * checked against later books, which is a fair test of the call even though real trades later
+ * showed the book is not what fills.
+ */
+const legOf = (sample, route, source) =>
+  route === "rtoken" ? (source === "quote" ? sample.spotQuote : sample.spot) : sample.perp;
+const costAt = (sample, route, size, source) => {
+  const leg = legOf(sample, route, source);
   if (!leg || leg.empty) return null;
   const v = leg.fills?.[String(size)]?.roundTripBp;
   return typeof v === "number" ? v : null;
 };
-const emptyAt = (sample, route) => legOf(sample, route)?.empty === true;
+const emptyAt = (sample, route, source) => legOf(sample, route, source)?.empty === true;
 
 /** Contiguous runs of an empty book, for names whose availability changed. */
 function outagesFor(keys, index) {
@@ -144,7 +152,7 @@ async function main() {
       for (const lag of LAGS) {
         const hit = sampleAt(index, p.ticker, Date.parse(p.at) + lag * MIN);
         if (!hit) continue;
-        const actual = costAt(hit.s, r.route, p.notionalUsd);
+        const actual = costAt(hit.s, r.route, p.notionalUsd, r.source);
         if (actual === null) continue;
         const err = actual - r.executionBp;
         const a = accuracy[lag];
@@ -192,14 +200,14 @@ async function main() {
       if (r.status === "no_book") {
         avail.saidDead++;
         avail.deadTickers.add(`${p.ticker}:${r.route}`);
-        if (emptyAt(later.s, r.route)) avail.deadStillDead++;
+        if (emptyAt(later.s, r.route, r.source)) avail.deadStillDead++;
         else if (avail.wrongDead.length < 20) {
           avail.wrongDead.push({ ticker: p.ticker, at: p.at, route: r.route });
         }
       } else if (r.status === "ok" || r.status === "stale") {
         avail.saidLive++;
         avail.liveTickers.add(`${p.ticker}:${r.route}`);
-        if (!emptyAt(later.s, r.route)) avail.liveStillLive++;
+        if (!emptyAt(later.s, r.route, r.source)) avail.liveStillLive++;
         else if (avail.wrongLive.length < 20) {
           avail.wrongLive.push({ ticker: p.ticker, at: p.at, route: r.route });
         }
@@ -227,7 +235,7 @@ async function main() {
       const replayed = [];
       let usable = true;
       for (const r of priced) {
-        const actual = costAt(hit.s, r.route, p.notionalUsd);
+        const actual = costAt(hit.s, r.route, p.notionalUsd, r.source);
         if (actual === null) { usable = false; break; }
         replayed.push({ route: r.route, total: r.totalBp - r.executionBp + actual });
       }
@@ -275,6 +283,15 @@ async function main() {
     sizes,
     byGate,
     byRoute,
+    /* How many calls priced the tokenized stock from the order book, and how many from the quote. */
+    sources: (() => {
+      const q = predictions.filter((p) => p.routes.some((r) => r.route === "rtoken" && r.source === "quote"));
+      return {
+        book: predictions.length - q.length,
+        quote: q.length,
+        quoteSince: q.map((p) => p.at).sort()[0] ?? null,
+      };
+    })(),
     accuracy: accuracyOut,
     availability: {
       saidDead: avail.saidDead,

@@ -534,3 +534,12 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
   background: none; border: none; padding: 0; color: var(--rtoken); cursor: pointer;
   font: inherit; text-decoration: underline;
 }
+
+.source-note { font-size: 12px; color: var(--dim); margin: -2px 0 10px; line-height: 1.45; }
+
+.rnotice {
+  font-size: 14px; line-height: 1.55; color: var(--muted); background: var(--panel);
+  border-left: 3px solid var(--warn); border-radius: 0 8px 8px 0; padding: 12px 14px; margin: 14px 0 18px;
+}
+.rnotice strong { color: var(--text); }
+.rtable .oid { display: block; font-family: var(--mono); font-size: 11px; color: var(--dim); }

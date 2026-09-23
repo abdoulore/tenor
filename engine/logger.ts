@@ -15,7 +15,7 @@
 import { join } from "node:path";
 import { sessionLabel } from "./book.ts";
 import { priceIntent } from "./engine.ts";
-import { fetchBook, fetchFunding, resolvePair, sessionOutlook } from "./live.ts";
+import { fetchBook, fetchFunding, fetchQuote, resolvePair, sessionOutlook } from "./live.ts";
 import { logPrediction } from "./predictions.ts";
 import { DEFAULT_CONSTRAINTS, type Intent, type Session } from "./types.ts";
 
@@ -67,8 +67,9 @@ async function pass(): Promise<{ written: number; failed: number }> {
       const pair = pairCache.get(ticker);
       if (!pair) { failed++; continue; }
 
+      // The tokenized stock is priced from its quote, which is what its orders fill at.
       const [spotBook, perpBook, funding, outlook] = await Promise.all([
-        fetchBook("SPOT", pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null })),
+        fetchQuote(pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null, source: "quote" as const })),
         fetchBook("USDT-FUTURES", pair.perpSymbol).catch(() => ({ asks: [], bids: [], ts: null })),
         fetchFunding(pair.perpSymbol).catch(() => []),
         sessionOutlook(ticker, SIZES[0], DATA_DIR),

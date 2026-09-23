@@ -11,6 +11,10 @@ export declare function walk(
 
 export declare function bookNotional(side: [number, number][]): number;
 
+export declare function quoteLevels(
+  row: unknown,
+): { asks: [number, number][]; bids: [number, number][]; ts: number | null };
+
 export declare function legMetrics(
   rawAsks: unknown,
   rawBids: unknown,

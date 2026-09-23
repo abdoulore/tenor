@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { analysePosition, daysRemaining, type Position, type SwitchAnalysis } from "../../engine/monitor.ts";
-import { fetchBook, fetchFunding, resolvePair } from "../../engine/bitget.ts";
+import { fetchBook, fetchFunding, fetchQuote, resolvePair } from "../../engine/bitget.ts";
 import type { Book } from "../../engine/types.ts";
 import type { Settlement } from "../../engine/funding.ts";
 import type { TickerGroups } from "./IntentControls.tsx";
@@ -80,7 +80,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
         const pair = await resolvePair(t);
         if (!pair) continue;
         const [spot, perp, fund] = await Promise.all([
-          fetchBook("SPOT", pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null }) as Book),
+          fetchQuote(pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null, source: "quote" }) as Book),
           fetchBook("USDT-FUTURES", pair.perpSymbol).catch(() => ({ asks: [], bids: [], ts: null }) as Book),
           fetchFunding(pair.perpSymbol).catch(() => [] as Settlement[]),
         ]);
@@ -161,9 +161,8 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
             placeholder="Type a ticker"
             onChange={(t) => setForm((f) => ({ ...f, ticker: t }))}
             groups={[
-              { label: `Can be traded (${groups.tradeable.length})`, items: groups.tradeable },
-              { label: `Bitget publishes no depth (${groups.dead.length})`, items: groups.dead, suffix: "cannot price", tone: "warn" },
-              { label: `Too small for us to have watched (${groups.untracked.length})`, items: groups.untracked, suffix: "not tracked", tone: "warn" },
+              { label: `Watched every five minutes (${groups.tradeable.length})`, items: groups.tradeable },
+              { label: `Priced live, no history yet (${groups.untracked.length})`, items: groups.untracked, suffix: "no history", tone: "warn" },
             ]}
           />
         </div>

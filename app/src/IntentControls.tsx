@@ -61,11 +61,9 @@ const HOLD_PERIODS: { label: string; days: number }[] = [
 const LEVERAGE = [1, 2, 3, 5, 10, 20];
 
 export interface TickerGroups {
-  /** Sampled, and the tokenized side actually quotes a price. */
+  /** Sampled every five minutes, so there is hour by hour history as well as a live price. */
   tradeable: string[];
-  /** Sampled continuously; Bitget publishes no depth for them, though they quote and trade. */
-  dead: string[];
-  /** Has both legs on Bitget but falls below the volume floor, so we have no history. */
+  /** Has both legs on Bitget and is priced live, but was never sampled, so has no history. */
   untracked: string[];
 }
 
@@ -80,19 +78,17 @@ export function IntentControls({
   onChange: (patch: DraftPatch) => void;
   busy: boolean;
 }) {
-  const isDead = groups.dead.includes(draft.ticker);
   const isUntracked = groups.untracked.includes(draft.ticker);
   /*
    * A ticker typed into the sentence box can arrive before the listing has loaded, and a
    * select whose value matches no option renders blank. Carry it as its own option so the
    * field always shows what is actually being priced.
    */
-  const known = isDead || isUntracked || groups.tradeable.includes(draft.ticker);
+  const known = isUntracked || groups.tradeable.includes(draft.ticker);
 
   const comboGroups: ComboGroup[] = [
-    { label: `Can be traded (${groups.tradeable.length})`, items: groups.tradeable },
-    { label: `Bitget publishes no depth (${groups.dead.length})`, items: groups.dead, suffix: "cannot price", tone: "warn" },
-    { label: `Too small for us to have watched (${groups.untracked.length})`, items: groups.untracked, suffix: "not tracked", tone: "warn" },
+    { label: `Watched every five minutes (${groups.tradeable.length})`, items: groups.tradeable },
+    { label: `Priced live, no history yet (${groups.untracked.length})`, items: groups.untracked, suffix: "no history", tone: "warn" },
   ];
   const c = draft.constraints;
   const setC = (patch: Partial<Constraints>) => onChange({ constraints: patch });

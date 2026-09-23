@@ -48,6 +48,11 @@ export interface Book {
   bids: Level[];
   /** Exchange timestamp in ms, when the venue supplies one. */
   ts: number | null;
+  /**
+   * Where the levels came from. "quote" is Bitget's best bid and ask with their sizes, one
+   * level a side, which is what tokenized stock orders fill at. Absent means an order book.
+   */
+  source?: "book" | "quote";
 }
 
 /** What walking a book for a given notional actually costs. */
@@ -119,6 +124,8 @@ export interface RouteResult {
   /** Data age in ms at the time of pricing, when known. */
   stalenessMs: number | null;
   rank: number | null;
+  /** Whether execution was priced from Bitget's quote or from an order book. */
+  source?: "book" | "quote" | null;
 }
 
 export interface SessionOutlook {

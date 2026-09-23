@@ -37,6 +37,7 @@ function median(xs) {
 const round = (x, dp = 3) => (x === null ? null : Math.round(x * 10 ** dp) / 10 ** dp);
 
 async function main() {
+  const MIN_QUOTE_SAMPLES = 6;
   const files = (await readdir(DATA_DIR))
     .filter((f) => f.startsWith("samples-") && f.endsWith(".ndjson")).sort();
   if (!files.length) throw new Error(`no sample files in ${DATA_DIR}`);
@@ -44,6 +45,8 @@ async function main() {
   /** ticker -> route -> session -> size -> { rt: [], empty, n } */
   const acc = new Map();
   let rows = 0;
+  let quoteSince = null;
+  let quoteRows = 0;
   let firstAt = null;
   let lastAt = null;
   const cycles = new Set();
@@ -61,7 +64,17 @@ async function main() {
 
       if (!acc.has(r.ticker)) acc.set(r.ticker, { rtoken: {}, perp: {}, control: !!r.control });
       const t = acc.get(r.ticker);
-      for (const [route, leg] of [["rtoken", r.spot], ["perp", r.perp]]) {
+      if (r.spotQuote) {
+        quoteRows++;
+        if (!quoteSince || r.t < quoteSince) quoteSince = r.t;
+      }
+      /*
+       * The tokenized stock is measured from its quote, which is what its orders fill at. Older
+       * records only carry its order book, which real trades showed overstates the cost, so for
+       * this route they are left out rather than mixed in. The perpetual uses its book as before.
+       */
+      for (const [route, leg] of [["rtoken", r.spotQuote], ["perp", r.perp]]) {
+        if (route === "rtoken" && !leg) continue;
         const bySession = t[route];
         if (!bySession[r.session]) {
           bySession[r.session] = { n: 0, empty: 0, sizes: Object.fromEntries(SIZES.map((s) => [s, []])) };
@@ -80,6 +93,8 @@ async function main() {
   const out = {
     generatedAt: new Date().toISOString(),
     coverage: { from: firstAt, to: lastAt, records: rows, cycles: cycles.size, files: files.length },
+    /** When the tokenized stock's quote was first recorded; its hour by hour figures start here. */
+    quoteCoverage: { from: quoteSince, records: quoteRows },
     sizes: SIZES.map(Number),
     sessions: SESSIONS,
     tickers: {},
@@ -91,6 +106,9 @@ async function main() {
       for (const session of SESSIONS) {
         const b = routes[route][session];
         if (!b || b.n === 0) continue;
+        // Quote recording started on 23 September. Half an hour of it in a session is the least
+        // worth showing; less than that and the session reads as not measured yet.
+        if (route === "rtoken" && b.n < MIN_QUOTE_SAMPLES) continue;
         entry[route][session] = {
           samples: b.n,
           emptyShare: round(b.empty / b.n, 4),

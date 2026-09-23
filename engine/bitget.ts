@@ -8,7 +8,7 @@
  * Nothing here touches the filesystem. The parts that read collected data live in live.ts.
  */
 
-import { toBook } from "./book.ts";
+import { quoteBook, toBook } from "./book.ts";
 import type { Book } from "./types.ts";
 import type { Settlement } from "./funding.ts";
 
@@ -109,6 +109,16 @@ export async function fetchBook(category: "SPOT" | "USDT-FUTURES", symbol: strin
     `${BASE}/api/v3/market/orderbook?category=${category}&symbol=${encodeURIComponent(symbol)}&limit=${ORDERBOOK_LIMIT}`,
   )) as { a?: unknown; b?: unknown; ts?: unknown };
   return toBook(d?.a, d?.b, d?.ts);
+}
+
+/**
+ * Bitget's quote for a tokenized stock: best bid and ask with their sizes, as a one level book.
+ * Tokenized stock orders fill at this quote rather than against the order book, which our own
+ * test trades showed; see quoteLevels in the sampler.
+ */
+export async function fetchQuote(symbol: string): Promise<Book> {
+  const rows = rowsOf(await getJson(`${BASE}/api/v3/market/tickers?category=SPOT&symbol=${encodeURIComponent(symbol)}`));
+  return quoteBook(rows[0] ?? null);
 }
 
 /** Funding settlements for a perp, oldest first. */

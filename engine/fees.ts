@@ -47,6 +47,9 @@ export interface FillReceipt {
   note?: string;
 }
 
+/** BGB's price when the four tokenized stock test orders were placed, for valuing their fees. */
+const BGB_AT_TEST = 2.0293;
+
 const perpFill = (side: string, price: number, fee: number, orderId: string): FillReceipt => ({
   id: `perp-nvda-${side.replace(/\s+/g, "-")}`,
   venue: "perp",
@@ -97,6 +100,28 @@ export const FILL_RECEIPTS: FillReceipt[] = [
   perpFill("close long", 213.58, 0.0064074, "1484049393424965633"),
   perpFill("open short", 213.53, 0.0064059, "1484049459409756161"),
   perpFill("close short", 213.54, 0.0064062, "1484049475989839873"),
+  ...[
+    ["rba-buy", "RBAUSDT", "buy", 201.45, 0.054, 10.8783, 0.00214445, "1486701960111009797"],
+    ["rba-sell", "RBAUSDT", "sell", 201.36, 0.054, 10.87344, 0.00214339, "1486701986992304149"],
+    ["rnvda-buy", "RNVDAUSDT", "buy", 224.22, 0.0485, 10.875058, 0.0021436, "1486703108498862082"],
+    ["rnvda-sell", "RNVDAUSDT", "sell", 224.2, 0.0485, 10.873797, 0.00214335, "1486703127809437697"],
+  ].map(([id, symbol, side, price, qty, notional, fee, orderId]) => ({
+    id: `spot-${id}`,
+    venue: "spot" as const,
+    symbol: symbol as string,
+    side: side as string,
+    price: price as number,
+    qty: qty as number,
+    notionalUsdt: notional as number,
+    feeRaw: fee as number,
+    feeCurrency: "BGB",
+    impliedRate: ((fee as number) * BGB_AT_TEST) / (notional as number),
+    orderId: orderId as string,
+    note:
+      "One of the four StockRoute test orders of 23 September 2026 (see evidence.ts). Fee paid in " +
+      `BGB, valued at ${BGB_AT_TEST} USDT read at 17:11 UTC, which makes it 4.00bp, in line with ` +
+      "the rGOOGL fill once the BGB price is allowed for.",
+  })),
 ];
 
 // ---------------------------------------------------------------- schedules

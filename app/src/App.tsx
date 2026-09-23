@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { priceIntent, betterSession } from "../../engine/engine.ts";
-import { fetchBook, fetchFunding, listTickers, resolvePair, type Pair } from "../../engine/bitget.ts";
+import { fetchBook, fetchFunding, fetchQuote, listTickers, resolvePair, type Pair } from "../../engine/bitget.ts";
 import { sessionLabel } from "../../engine/book.ts";
 import { DEFAULT_FEES, roundTripFeeBp } from "../../engine/fees.ts";
 import { ROUTE_BLURBS, theRoute, TheRoute } from "../../engine/eligibility.ts";
@@ -91,26 +91,18 @@ const pctOf = (bp: number | null | undefined) =>
   bp === null || bp === undefined ? "n/a" : `${(bp / 100).toFixed(3)}%`;
 
 /**
- * Split everything Bitget lists into what can be priced, what trades but has no published
- * depth, and what we have never watched.
+ * Split everything Bitget lists into names we have watched every five minutes, which have hour
+ * by hour history, and names we have not, which are priced live but have no history.
  *
- * "No depth" means sampled every five minutes and Bitget's order book endpoint returned nothing
- * for the tokenized side on every check. These markets still quote and trade: their best bid
- * and ask are live on Bitget's ticker. Their depth is simply not published, so they cannot be
- * priced, and the page says exactly that rather than calling them dead.
+ * Every listed name can be priced live, because the tokenized stock is priced from Bitget's
+ * quote and every one of them has a quote. The order book, which half of them lack, is not what
+ * their orders fill at.
  */
 function groupTickers(live: string[]): TickerGroups {
-  const entries = (outlookData as OutlookFile).tickers as Record<
-    string, { rtoken?: Record<string, { emptyShare: number }> }
-  >;
-  const watched = Object.keys(entries);
-  const quotes = (t: string) =>
-    Object.values(entries[t]?.rtoken ?? {}).some((sess) => sess.emptyShare < 1);
-
-  const tradeable = watched.filter(quotes).sort();
-  const dead = watched.filter((t) => !quotes(t)).sort();
+  const watched = Object.keys((outlookData as OutlookFile).tickers);
+  const tradeable = watched.filter((t) => live.length === 0 || live.includes(t)).sort();
   const untracked = live.filter((t) => !watched.includes(t)).sort();
-  return { tradeable, dead, untracked };
+  return { tradeable, untracked };
 }
 
 const fmtBp = (x: number | null | undefined, dp = 2) =>
@@ -128,24 +120,24 @@ function Range({ r, notional }: { r: { low: number; mid: number; high: number };
 }
 
 const STATUS_COPY: Record<string, { title: string; tone: string }> = {
-  no_book: { title: "Depth not published", tone: "warn" },
-  cannot_fill: { title: "Not enough on offer", tone: "warn" },
+  no_book: { title: "No price right now", tone: "warn" },
+  cannot_fill: { title: "Larger than we can see", tone: "warn" },
   ineligible: { title: "Will not do what you asked", tone: "dead" },
   modeled: { title: "Cannot be priced", tone: "muted" },
   stale: { title: "Prices a moment old", tone: "warn" },
 };
 
 function RouteCard({
-  r, notional, best, horizonDays, decisionBp, symbol,
+  r, notional, best, horizonDays, decisionBp, overlap, symbol,
 }: {
   r: RouteResult; notional: number; best: boolean; horizonDays: number;
-  decisionBp: number | null; symbol?: string;
+  decisionBp: number | null; overlap: boolean; symbol?: string;
 }) {
   const copy = STATUS_COPY[r.status];
   const priced = r.totalBp !== null;
   const certain = (r.feeBp ?? 0) + (r.executionBp ?? 0);
   const bandWidth = r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0;
-  const wideBand = decisionBp !== null && bandWidth > Math.abs(decisionBp);
+  const wideBand = decisionBp !== null && overlap && bandWidth > Math.abs(decisionBp);
 
   return (
     <div className={`route ${best ? "best" : ""} ${copy?.tone ?? "ok"}`}>
@@ -156,6 +148,12 @@ function RouteCard({
         {copy && <span className={`badge ${copy.tone}`}>{copy.title}</span>}
       </div>
       <div className="blurb">{ROUTE_BLURBS[r.route]}</div>
+      {r.source === "quote" && (
+        <div className="source-note">
+          Priced from Bitget's live quote, which is what tokenized stock orders fill at. Our own
+          test orders filled at the quote, not at the order book.
+        </div>
+      )}
 
       {priced ? (
         <>
@@ -213,8 +211,9 @@ function RouteCard({
 
           {r.absorbableUsd !== null && r.absorbableUsd < notional * 3 && (
             <div className="note">
-              Only about ${r.absorbableUsd.toLocaleString()} is on offer, so a much larger order
-              would start moving the price against you.
+              {r.source === "quote"
+                ? `Bitget's price covers about $${r.absorbableUsd.toLocaleString()}. Beyond that we cannot see what a larger order would pay.`
+                : `Only about $${r.absorbableUsd.toLocaleString()} is on offer, so a much larger order would start moving the price against you.`}
             </div>
           )}
         </>
@@ -290,7 +289,8 @@ export default function App() {
     setPair(p);
 
     const [spotRes, perpRes, fundRes] = await Promise.allSettled([
-      fetchBook("SPOT", p.spotSymbol),
+      // The tokenized stock is priced from Bitget's quote: that is what its orders fill at.
+      fetchQuote(p.spotSymbol),
       fetchBook("USDT-FUTURES", p.perpSymbol),
       fetchFunding(p.perpSymbol),
     ]);
@@ -586,6 +586,7 @@ export default function App() {
                   best={r.rank === 1}
                   horizonDays={intent.horizonDays}
                   decisionBp={decisionGap(quote)}
+                  overlap={unsettled(quote)}
                   symbol={r.route === "rtoken" ? pair?.spotSymbol : r.route === "perp" ? pair?.perpSymbol : undefined}
                 />
               ))}
@@ -691,7 +692,10 @@ function Chip({ k, v, found }: { k: string; v: string; found: boolean }) {
 function Verdict({ quote, notional, split }: { quote: Quote; notional: number; split: SplitPlan | null }) {
   const best = quote.routes.find((r) => r.rank === 1);
   const second = quote.routes.find((r) => r.rank === 2);
-  const dead = quote.routes.find((r) => r.route !== "stockplus" && r.status === "no_book");
+  // The other wrapper, when it could not be priced at this amount, and the reason why.
+  const blocked = quote.routes.find(
+    (r) => r.route !== "stockplus" && r.rank === null && (r.status === "no_book" || r.status === "cannot_fill"),
+  );
 
   // Too big for either book alone, but fillable across both. Saying "no way" would be false.
   if (!best && split?.worthIt && split.bestSingle === null) {
@@ -716,11 +720,13 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
     return (
       <div className="verdict only">
         <strong>
-          {dead ? `Only ${theRoute(best.route)} can be priced.` : `Only one option works: ${theRoute(best.route)}.`}
+          {blocked
+            ? `Only ${theRoute(best.route)} can be priced at $${notional.toLocaleString()} right now.`
+            : `Only one option works: ${theRoute(best.route)}.`}
         </strong>
         <span>
-          {dead
-            ? `Bitget does not publish how much is on offer for ${theRoute(dead.route)}, so we cannot price it or compare the two. It does trade: its current price is in the Bitget app.`
+          {blocked
+            ? blocked.reason ?? ""
             : "Nothing else can do what you asked."}
         </span>
       </div>
@@ -729,13 +735,15 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
 
   const diff = second.totalBp!.mid - best.totalBp!.mid;
   /*
-   * If the holding-fee forecast is wider than the gap between the two options, the ranking
-   * is a coin toss wearing a suit. Say that in the headline, not the footnotes.
+   * If the funding forecast could put the runner up ahead, the ranking is a coin toss wearing a
+   * suit. Say that in the headline, not the footnotes. It only is when the two cost ranges
+   * overlap: a band wider than the gap does not matter if even the runner up's best case costs
+   * more than the leader's worst.
    */
   const widestBand = Math.max(
     ...quote.routes.map((r) => (r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0)),
   );
-  if (widestBand > Math.abs(diff)) {
+  if (unsettled(quote)) {
     return (
       <div className="verdict unsettled">
         <strong>Too close to call.</strong>
@@ -761,6 +769,14 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
       </span>
     </div>
   );
+}
+
+/** True when the funding forecast could reverse the ranking: the two cost ranges overlap. */
+function unsettled(quote: Quote): boolean {
+  const a = quote.routes.find((r) => r.rank === 1);
+  const b = quote.routes.find((r) => r.rank === 2);
+  if (!a?.totalBp || !b?.totalBp) return false;
+  return b.totalBp.low < a.totalBp.high;
 }
 
 /** How much separates the best two ranked routes, which is what the answer turns on. */

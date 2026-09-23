@@ -41,7 +41,7 @@ export interface PredictionRecord {
   rationale: string;
 
   /** Every route's status at the time, so a wrong call can be diagnosed rather than guessed at. */
-  routes: { route: RouteId; status: string; totalBp: number | null; executionBp: number | null }[];
+  routes: { route: RouteId; status: string; totalBp: number | null; executionBp: number | null; source?: "book" | "quote" | null }[];
   /** Data age at the time of the call, per route, where known. */
   stalenessMs: Record<string, number> | null;
   source: string;
@@ -105,6 +105,7 @@ export function toRecord(q: Quote, source: string): PredictionRecord {
       status: r.status,
       totalBp: r.totalBp?.mid ?? null,
       executionBp: r.executionBp,
+      source: r.source ?? null,
     })),
     stalenessMs: (() => {
       const out: Record<string, number> = {};

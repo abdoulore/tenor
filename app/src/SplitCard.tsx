@@ -27,7 +27,7 @@ export function SplitCard({ plan }: { plan: SplitPlan }) {
     return (
       <p className="split-none">
         Splitting this order across both would not help at ${plan.notionalUsd.toLocaleString()}: one
-        book has enough depth to take it all more cheaply.
+        of the two can take it all more cheaply.
       </p>
     );
   }

@@ -3,7 +3,8 @@
 **Bitget sells three ways to own the same US stock. They do not cost the same, and which is
 cheapest changes with your size, the hour, and how long you hold.**
 
-Tenor prices all three from live order books and tells you which one to use, in dollars.
+Tenor prices all three from what Bitget actually fills at, and tells you which one to use, in
+dollars.
 
 Live: **https://tenor-desk.vercel.app**
 
@@ -20,38 +21,44 @@ So we measured it.
 
 ## What we found
 
-Continuous order book sampling on both legs of every tradeable ticker, every five minutes,
-since 15 September. **146 tickers, 198,072 snapshots, 2,080 cycles** so far.
+**The public order book is not what a tokenized stock fills at.** Tenor started out walking
+Bitget's order book for both wrappers. On 23 September the book for rNVDA sat 0.7% away from
+Bitget's own ticker for over half an hour, with a bid above the ticker's ask, so the two could
+not both be real. We placed four market orders of about $11 to settle it, a buy and a sell of
+rNVDA and of rBA. Bitget tagged all four StockRoute, and all four filled within 1.5bp of the
+ticker's quote. On rNVDA the book was wider and did not move while the quote did: the buy
+filled 5.35bp better than the book's ask. On rBA the book was empty. Order numbers, fills,
+and the quote and book readings either side of each fill are in
+[`engine/evidence.ts`](engine/evidence.ts) and on the app's track record page.
 
-**Bitget publishes depth for fewer than half of these.** Of 146 tokenized stocks watched,
-**77 returned no order book depth on any check** in eight days of sampling every five minutes.
-They are live markets: all 77 show a best bid and ask on Bitget's ticker, 58 traded on
-Bitget in the 24 hours we checked, and every one we spot-checked moved with the share price.
-But with no published depth, nobody can know what a trade of any size will cost before
-placing it. That includes Netflix, McDonald's, Exxon and SOXL.
+**It changes the answer about half the time.** In the first quote cycles, on a $2,000 round
+trip counting trading costs only, the order book made the perpetual look cheaper in 53% of
+comparisons. Priced from the quote, it is 1%. The book overstated the tokenized stock's cost
+by a median 11.2bp. So Tenor now prices the tokenized stock from Bitget's quote, the best bid
+and ask with the size shown at each, and the perpetual from its order book, which is what
+futures trade against.
 
-**Size matters more than the fee schedule.** Coca-Cola's tokenized book costs 14bp to round
-trip at $500 and 118bp at $50,000, more than eight times as much. A top-of-book spread would
-have understated a $50,000 order by more than half.
+**Every listed name can be priced, including the ones with no order book.** Bitget publishes
+no depth for about half its tokenized stocks, which is why Tenor used to say it could not
+price them. Every one of them has a quote, and a quote is what fills.
 
-**The hour matters, but not the way you would guess.** US market hours are cheapest for
-**71% of tickers**, and for the deepest third it is 85%. The exceptions are real but tiny: when
-something beats US hours it saves about a basis point, while trading at the wrong hour when
-US hours wins costs a median of 13bp and up to 61bp. ABNB is $1.95 in US hours and $13.09
-overnight, on $2,000. The asymmetry is the finding, not the exceptions.
+**The quote shows how much is on offer, and often not much.** The median name shows about
+$4,700 at its best price, and 70% can take a $2,000 round trip at the quote. Beyond the shown
+size Tenor says it cannot see, rather than guessing, and a larger order is split: as much as
+the quote covers goes to the tokenized stock, the rest to the perpetual.
 
-**Depth is published all day or not at all.** No token with published depth in US hours loses
-it overnight; the hour changes the cost, not whether it can be priced. The single exception
-in eight days was MSFT, whose depth disappeared from Bitget's feed for two hours on the
-morning of 21 September and then came back.
-
-**Fees are measured, not assumed.** The spot rate comes from a real fill on a real account
-(3.95bp, against the 10bp published rate), the perpetual rate from four NVDA fills that agree
-to six decimal places (6.00bp, no discount). Spot and perpetual tiers are independent on
+**Fees are measured, not assumed.** The spot rate comes from real fills on a real account
+(3.95bp on rGOOGL and 4.00bp on each of the four test orders, paid in BGB, against the 10bp
+published rate), the perpetual rate from four NVDA fills that agree to six decimal places
+(6.00bp, no discount). Spot and perpetual tiers are independent on
 Bitget and neither is derivable from the other. Order numbers are in
 [`engine/fees.ts`](engine/fees.ts) if you want to check.
 
 ## Track record
+
+Read this with the finding above in mind. Until 23 September every call priced the tokenized
+stock from the order book, so the record below is a fair test of the book, which turned out
+to be the wrong thing to measure for the tokenized stock. Calls since then use the quote.
 
 Every recommendation is written down the moment it is made, before the answer is knowable.
 **38,496 logged so far.** Scored against the continuous sampling:
@@ -71,18 +78,21 @@ funding projections are **not scored**, because none has finished running.
 
 Four gates, answered in order. The first two decide, the last two adjust.
 
-1. **Can it be priced at all?** Bitget publishes no depth for about half its tokenized
-   stocks. Where it does not, the page says so rather than guessing or calling the market dead.
-2. **At your size?** The book is walked for the requested amount. A route that cannot absorb
-   your order is not an expensive option, it is not an option.
-3. **At this hour?** Session medians from the sampled history, with a cheaper session named
+1. **Can it be priced at all?** Is there a two sided price to trade at: Bitget's quote for the
+   tokenized stock, the order book for the perpetual.
+2. **At your size?** The quote or the book is walked for the requested amount. A route that
+   cannot absorb your order is not an expensive option, it is not an option, and beyond the
+   quoted size of a tokenized stock the page says it cannot see rather than guessing.
+3. **At this hour?** Session medians from the sampled history (the tokenized stock's from its
+   quote, recorded since 23 September), with a cheaper session named
    when one exists and the saving is worth acting on.
 4. **For how long?** Only when execution is close enough that funding can decide it.
 
-For large orders it also searches every split between the two wrappers, walking both live books
-for each part's share, and recommends a split only when it saves at least a basis point and a
-dollar. On live books, $100,000 of KO costs $980 through the perpetual alone and $854 split 78%
-perpetual and 22% tokenized; at $2,000 no split helps, and the page says so.
+For large orders it also searches every split between the two wrappers, pricing each part's
+share from the quote and the book, and recommends a split only when it saves at least a basis
+point and a dollar. On 23 September Bitget's quote for rKO covered about $2,373, so for
+$100,000 of KO the split put $2,000 in the tokenized stock and $98,000 in the perpetual,
+saving $21.50 against the perpetual alone; at $2,000 of NVDA no split helps.
 
 Alongside the price it shows the share itself: its real price against the token's, and the next
 dividend and earnings report, from Bitget's market data service. Future dates are projected from
@@ -103,19 +113,22 @@ engine prices it.
 
 All public Bitget endpoints, no account required to run this:
 
-- `v3/market/orderbook` for both legs, 150 levels, every five minutes
+- `v3/market/orderbook`, 150 levels, every five minutes: the perpetual's prices, and the
+  tokenized stock's book kept alongside its quote as a comparison
 - `v3/market/history-fund-rate` for funding
 - `v3/market/instruments` and `tickers` for the universe and volume screen
 - Bitget's market data service (`bitget-mcp-server`) for share prices, dividends and earnings
   dates, one of the Agent Hub Skills
-- Fees derived from five real fills, recorded with their order numbers
+- `v3/market/tickers` for each tokenized stock's quote: best bid and ask with their sizes,
+  every five minutes, which is what its orders fill at
+- Fees derived from nine real fills, eight recorded with their order numbers
 
 ## Layout
 
 | Directory | What it is |
 |---|---|
-| `engine/` | The cost engine. Deterministic, dependency free, 226 offline tests. |
-| `sampler/` | Continuous order book sampler. Zero dependencies, plain `.mjs`. |
+| `engine/` | The cost engine. Deterministic, dependency free, 240 offline tests. |
+| `sampler/` | Continuous order book and quote sampler. Zero dependencies, plain `.mjs`. |
 | `app/` | Vite + React front end. Static, calls Bitget directly from the browser. |
 | `api/` | Three serverless functions: intent parsing and questions about a result, so the model key never reaches the browser, and share data from Bitget's market data service. |
 | `ops/` | Backup, outlook builder, receipts scorer, session analysis. |
@@ -126,8 +139,8 @@ All public Bitget endpoints, no account required to run this:
 Node 20 or later. The engine and sampler have **no dependencies** and no build step.
 
 ```bash
-node engine/selftest.ts          # 226 tests, offline, no network
-node engine/demo.ts              # price five tickers against live books
+node engine/selftest.ts          # 240 tests, offline, no network
+node engine/demo.ts              # price five tickers against live prices
 node sampler/sample.mjs --once   # one sampling cycle
 node ops/receipts.mjs            # score the prediction log
 
@@ -156,6 +169,10 @@ It does not predict prices, propose a strategy, or have a Sharpe ratio. It measu
 trading costs and which wrapper is cheapest. Those are different jobs.
 
 The sampled history is days, not years. The app says so on every screen that uses it.
+
+The evidence that tokenized stock orders fill at the quote is four orders of about $11 each.
+Larger orders inside the quoted size are assumed to fill the same way; beyond it, nothing is
+assumed and the app says it cannot see.
 
 Whether Bitget passes dividends on through the tokenized stock or the perpetual, and whether
 either can be used as collateral, is **unconfirmed**, so the app surfaces those as unknowns

@@ -61,6 +61,32 @@ export function bookNotional(side) {
   return t;
 }
 
+/**
+ * Bitget's quote for a tokenized stock, as a one level book: the best bid and ask from the
+ * ticker, each with the size shown at that price.
+ *
+ * This is what a tokenized stock order actually fills at. On 23 September 2026 four market
+ * orders on this account, a buy and a sell of rBA and of rNVDA, all tagged StockRoute, filled
+ * within three cents of the ticker's quote. For rNVDA the public order book was 6bp wider at
+ * the time and did not move while the ticker did; for rBA the order book was empty. So the
+ * order book is not what fills, and the quote is.
+ *
+ * Nothing beyond the shown size is visible, so a walk past it reports the order as not
+ * fillable rather than guessing at a price.
+ */
+export function quoteLevels(row) {
+  const bid = Number(row?.bid1Price);
+  const ask = Number(row?.ask1Price);
+  const bidSize = Number(row?.bid1Size);
+  const askSize = Number(row?.ask1Size);
+  const ts = Number(row?.ts);
+  return {
+    asks: ask > 0 && askSize > 0 ? [[ask, askSize]] : [],
+    bids: bid > 0 && bidSize > 0 ? [[bid, bidSize]] : [],
+    ts: Number.isFinite(ts) && ts > 0 ? ts : null,
+  };
+}
+
 /** Derive every metric one leg contributes to a sample. */
 export function legMetrics(rawAsks, rawBids) {
   const asks = levels(rawAsks);

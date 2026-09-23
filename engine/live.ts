@@ -8,7 +8,7 @@
 
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { toBook } from "./book.ts";
+import { quoteBook, toBook } from "./book.ts";
 // @ts-expect-error plain .mjs module, types declared in ../sampler/universe.d.mts
 import { BASE, buildUniverse, extractVolume, rowsOf } from "../sampler/universe.mjs";
 import type { Settlement } from "./funding.ts";
@@ -100,6 +100,12 @@ export async function fetchBook(category: "SPOT" | "USDT-FUTURES", symbol: strin
   return toBook(d?.a, d?.b, d?.ts);
 }
 
+/** Bitget's quote for a tokenized stock, as a one level book. The same as bitget.ts. */
+export async function fetchQuote(symbol: string): Promise<Book> {
+  const rows = rowsOf(await getJson(`${BASE}/api/v3/market/tickers?category=SPOT&symbol=${encodeURIComponent(symbol)}`));
+  return quoteBook(rows[0] ?? null);
+}
+
 /** Funding settlements for a perp, newest last. */
 export async function fetchFunding(symbol: string, lookbackDays = 30): Promise<Settlement[]> {
   const out: Settlement[] = [];
@@ -172,7 +178,13 @@ export async function sessionOutlook(
       let r: Record<string, any>;
       try { r = JSON.parse(line); } catch { continue; }
       if (r.ticker !== want) continue;
-      for (const [route, leg] of [["rtoken", r.spot], ["perp", r.perp]] as const) {
+      /*
+       * The tokenized stock is measured from its quote, which is what its orders fill at. Records
+       * from before the sampler recorded quotes only have the order book, which real trades showed
+       * overstates the cost, so those are left out for this route rather than mixed in.
+       */
+      for (const [route, leg] of [["rtoken", r.spotQuote], ["perp", r.perp]] as const) {
+        if (route === "rtoken" && !leg) continue;
         const bucket = acc[route][r.session];
         if (!bucket) continue;
         bucket.n++;

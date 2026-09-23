@@ -8,7 +8,8 @@
  * negative funding, missing data, and every route ineligible.
  */
 
-import { execution, toBook } from "./book.ts";
+import { execution, quoteBook, toBook } from "./book.ts";
+import { QUOTE_TESTS, fillGaps } from "./evidence.ts";
 import { ACCOUNT_FEES, FILL_RECEIPTS, FLIP_TEST_FEES, PUBLISHED_FEES, feeGapBp, roundTripFeeBp, unverifiedLegs } from "./fees.ts";
 import { checkEligibility } from "./eligibility.ts";
 import { crossoverDays, projectFunding, quantile, trailingDailyFunding, type Settlement } from "./funding.ts";
@@ -767,6 +768,54 @@ group("the underlying share: premium, dividends, earnings");
   check("no earnings history means no earnings claim", out.nextEarnings === null);
 }
 
+// ---------------------------------------------------------------- the tokenized stock is priced from its quote
+
+group("the tokenized stock is priced from Bitget's quote");
+{
+  const row = { bid1Price: "224.22", ask1Price: "224.23", bid1Size: "254", ask1Size: "100", ts: String(NOW) };
+  const qb = quoteBook(row);
+  check("a ticker row becomes a one level book marked as a quote",
+    qb.source === "quote" && qb.asks.length === 1 && qb.bids.length === 1 && qb.asks[0][1] === 100);
+
+  const quoted = priceIntent(intent(), {
+    session: "regular", books: { rtoken: qb, perp: makeBook(2, 1_000) }, funding: settlements(30, 0), now: NOW,
+  });
+  const rt = quoted.routes.find((r) => r.route === "rtoken")!;
+  const spreadBp = ((224.23 - 224.22) / 224.225) * 10_000;
+  check("a quoted route is priced and says where its price came from", rt.status === "ok" && rt.source === "quote", rt.status);
+  check("inside the quoted size the round trip is exactly the quoted spread",
+    near(rt.executionBp!, spreadBp, 1e-3), `${rt.executionBp} vs ${spreadBp}`);
+  check("the perpetual is still priced from its book",
+    quoted.routes.find((r) => r.route === "perp")!.source === "book");
+
+  const big = priceIntent(intent({ notionalUsd: 50_000 }), {
+    session: "regular", books: { rtoken: qb, perp: makeBook(2, 1_000) }, funding: settlements(30, 0), now: NOW,
+  });
+  const bigRt = big.routes.find((r) => r.route === "rtoken")!;
+  check("beyond the quoted size the tokenized stock is not priced", bigRt.status === "cannot_fill", bigRt.status);
+  check("and the page says it cannot see further, not that the price would move",
+    /cannot see what you would pay/.test(bigRt.reason ?? "") && !/move the price/.test(bigRt.reason ?? ""), bigRt.reason ?? "");
+
+  const none = priceIntent(intent(), {
+    session: "regular", books: { rtoken: quoteBook({ bid1Price: "0", ask1Price: "0", bid1Size: "0", ask1Size: "0" }), perp: makeBook(2, 1_000) },
+    funding: settlements(30, 0), now: NOW,
+  });
+  const noneRt = none.routes.find((r) => r.route === "rtoken")!;
+  check("with no two sided quote the tokenized stock cannot be priced", noneRt.status === "no_book");
+  check("and the reason names the missing price, not the order book",
+    /not showing both a buying and a selling price/.test(noneRt.reason ?? ""), noneRt.reason ?? "");
+
+  check("four test orders are recorded", QUOTE_TESTS.length === 4);
+  check("every test order filled within 2bp of the quote", QUOTE_TESTS.every((t) => fillGaps(t).quoteBp <= 2),
+    JSON.stringify(QUOTE_TESTS.map(fillGaps)));
+  check("where there was an order book, every fill was nearer the quote than the book",
+    QUOTE_TESTS.filter((t) => t.book).every((t) => fillGaps(t).quoteBp < fillGaps(t).bookBp!));
+  const spotTests = FILL_RECEIPTS.filter((f) => f.venue === "spot" && f.orderId);
+  check("the test orders carry order numbers and a 4bp fee", spotTests.length === 4 &&
+    spotTests.every((f) => near(f.impliedRate * 10_000, 4.0, 0.02)),
+    spotTests.map((f) => (f.impliedRate * 10_000).toFixed(3)).join(" "));
+}
+
 // ---------------------------------------------------------------- keeping the model to the engine's numbers
 
 group("the explanation may only use the engine's figures");
@@ -779,6 +828,15 @@ group("the explanation may only use the engine's figures");
 
   check("the sheet carries each priced route's total in dollars", sheet.text.includes(`$${rtDollars}`), sheet.text);
   check("the sheet states the verdict", /Verdict: use the tokenized stock/.test(sheet.text), sheet.text);
+  // A wide funding band is not "too close to call" when even the perpetual's best case costs more.
+  const swingy: Settlement[] = settlements(30, 0).map((s, k) => ({ ...s, rate: k % 5 === 0 ? 0.001 : 0 }));
+  const clear = priceIntent(intent(), { session: "regular", books, funding: swingy, now: NOW });
+  const cr = clear.routes.find((r) => r.route === "rtoken")!.totalBp!;
+  const cp = clear.routes.find((r) => r.route === "perp")!.totalBp!;
+  check("the case is set up: a wide band, but no overlap", cp.high - cp.low > cp.mid - cr.mid && cp.low > cr.high,
+    JSON.stringify({ cr, cp }));
+  check("ranges that do not overlap give a clear verdict, not too close to call",
+    /Verdict: use the tokenized stock/.test(factSheet(clear).text), factSheet(clear).text);
   check("the sheet gives session hours in the reader's time", /US market hours 09:30 to 16:00/.test(sheet.text));
 
   check("a figure copied from the sheet passes",

@@ -3,8 +3,12 @@
  *
  * Four gates, in order. The first two decide, the last two adjust.
  *
- *   1. Can it be priced at all?   Bitget publishes no depth for about half its tokenized stocks.
- *   2. At your size?              Walk the book for the requested notional.
+ *   1. Can it be priced at all?   Is there a two sided price to trade at.
+ *   2. At your size?              Walk the book, or the quote, for the requested notional.
+ *
+ * The tokenized stock is priced from Bitget's quote, the best bid and ask with the size shown
+ * at each, because that is what its orders fill at. Real trades showed the public order book
+ * is not. The perpetual is priced from its order book, which is what futures trade against.
  *   3. At this hour?              Session adjusted, naming a better session when there is one.
  *   4. For how long?              Only when execution is inside the fee gap.
  *
@@ -117,6 +121,7 @@ function priceRoute(
     totalBp: null,
     stalenessMs: inputs.stalenessMs?.[route] ?? null,
     rank: null,
+    source: null,
   };
 
   // Gate 0: can this route express the view at all.
@@ -167,14 +172,19 @@ function priceRoute(
     };
   }
 
-  // Gate 1: is there a book at all. This is the headline state, not an error.
+  const quoted = book?.source === "quote";
+  base.source = hasOverride ? null : quoted ? "quote" : book ? "book" : null;
+
+  // Gate 1: is there a price at all. This is the headline state, not an error.
   // A measured override answers for a different hour, so the current book not existing is
   // not the question being asked and does not decide it.
   if (!hasOverride && (!book || isEmpty(book))) {
     return {
       ...base,
       status: "no_book",
-      reason: `Bitget does not publish how much is on offer for ${theRoute(route)}, so we cannot price it. It does trade: its current price is in the Bitget app.`,
+      reason: quoted
+        ? `Bitget is not showing both a buying and a selling price for ${theRoute(route)} right now, so we cannot price it.`
+        : `Bitget does not publish how much is on offer for ${theRoute(route)}, so we cannot price it.`,
       absorbableUsd: 0,
     };
   }
@@ -211,9 +221,11 @@ function priceRoute(
       feeProvenance: feeLegFor(route, fees).provenance,
       feeSource: feeLegFor(route, fees).source,
       fundingBp: partialFunding,
-      reason:
-        `Only about $${canTake.toLocaleString()} of ${theRoute(route)} is on offer, ` +
-        `and you asked for $${intent.notionalUsd.toLocaleString()}. You would move the price against yourself.`,
+      reason: quoted
+        ? `Bitget's price for ${theRoute(route)} covers about $${canTake.toLocaleString()}, and you asked for ` +
+          `$${intent.notionalUsd.toLocaleString()}. Beyond that we cannot see what you would pay, so we will not guess.`
+        : `Only about $${canTake.toLocaleString()} of ${theRoute(route)} is on offer, ` +
+          `and you asked for $${intent.notionalUsd.toLocaleString()}. You would move the price against yourself.`,
     };
   }
 

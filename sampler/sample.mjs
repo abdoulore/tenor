@@ -21,9 +21,10 @@ import { join } from "node:path";
 import {
   BASE, CANARY_LIQUID, CONTROL_THIN, buildUniverse, extractPlatformVolume, extractVolume, rowsOf,
 } from "./universe.mjs";
-import { FILL_SIZES_USD, legMetrics, sessionLabel, walk, levels } from "./depth.mjs";
+import { FILL_SIZES_USD, legMetrics, quoteLevels, sessionLabel, walk, levels } from "./depth.mjs";
 
-const SCHEMA = 1;
+/** 2 adds spotQuote, the tokenized stock's quote, which is what its orders fill at. */
+const SCHEMA = 2;
 const ARGS = new Set(process.argv.slice(2));
 const flag = (name, fallback) => {
   const i = process.argv.indexOf(name);
@@ -238,6 +239,36 @@ async function sampleLeg(category, symbol) {
   }
 }
 
+/**
+ * Bitget's quote for the tokenized stock, measured the same way as a book leg, from the ticker's
+ * best bid and ask with their sizes. Tokenized stock orders fill at this quote, which our own
+ * test trades showed, so from schema 2 this is the leg the tokenized stock is priced from. The
+ * order book is still recorded beside it, because the gap between the two is itself a finding.
+ */
+async function sampleQuote(symbol) {
+  const t0 = Date.now();
+  try {
+    const d = await getJson(`${BASE}/api/v3/market/tickers?category=SPOT&symbol=${encodeURIComponent(symbol)}`);
+    const row = rowsOf(d)[0];
+    const q = quoteLevels(row);
+    const m = legMetrics(q.asks, q.bids);
+    const raw = {
+      bid: Number(row?.bid1Price) || null,
+      ask: Number(row?.ask1Price) || null,
+      bidSize: Number(row?.bid1Size) || null,
+      askSize: Number(row?.ask1Size) || null,
+      quoteTs: q.ts,
+      stalenessMs: q.ts ? Date.now() - q.ts : null,
+      latencyMs: Date.now() - t0,
+    };
+    if (!m.ok) return { symbol, empty: m.empty === true, note: m.reason, ...raw };
+    const { ok, askLevels, bidLevels, ...rest } = m;
+    return { symbol, ...rest, ...raw };
+  } catch (e) {
+    return { symbol, error: String(e?.message ?? e).slice(0, 200), latencyMs: Date.now() - t0 };
+  }
+}
+
 async function sampleCycle(universe) {
   const startedAt = new Date();
   const session = sessionLabel(startedAt);
@@ -249,9 +280,10 @@ async function sampleCycle(universe) {
 
   for (const pair of universe.selected) {
     // Legs are fetched together so the two books are as close in time as the throttle allows.
-    const [spot, perp] = await Promise.all([
+    const [spot, perp, spotQuote] = await Promise.all([
       sampleLeg("SPOT", pair.spotSymbol),
       sampleLeg("USDT-FUTURES", pair.perpSymbol),
+      sampleQuote(pair.spotSymbol),
     ]);
 
     const record = {
@@ -265,6 +297,7 @@ async function sampleCycle(universe) {
       spotVolume24h: pair.spotVolume24h,
       spot,
       perp,
+      spotQuote,
     };
 
     // The comparison the product rests on: rToken round trip minus perp round trip,
@@ -272,6 +305,14 @@ async function sampleCycle(universe) {
     if (spot.empty) emptySpot++;
     if (perp.empty) emptyPerp++;
 
+    if (spotQuote.fills && perp.fills) {
+      record.gapQuoteBp = {};
+      for (const size of FILL_SIZES_USD) {
+        const s = spotQuote.fills[size].roundTripBp;
+        const p = perp.fills[size].roundTripBp;
+        record.gapQuoteBp[size] = s === null || p === null ? null : Math.round((s - p) * 1000) / 1000;
+      }
+    }
     if (spot.fills && perp.fills) {
       record.gapBp = {};
       for (const size of FILL_SIZES_USD) {
@@ -348,6 +389,16 @@ function selftest() {
   check("crossed book rejected", legMetrics([[99, 1]], [[101, 1]]).ok === false);
   check("string levels parse", levels([["1.5", "2"]])[0][0] === 1.5);
   check("zero size levels dropped", levels([[1, 0], [2, 1]]).length === 1);
+
+  const q = quoteLevels({ bid1Price: "224.22", ask1Price: "224.23", bid1Size: "254", ask1Size: "423", ts: "1790183489101" });
+  const qm = legMetrics(q.asks, q.bids);
+  check("a quote reads as one level a side", q.asks.length === 1 && q.bids.length === 1);
+  check("a quote's round trip is its spread", Math.abs(qm.fills[2000].roundTripBp - qm.spreadBp) < 1e-3,
+    `${qm.fills[2000].roundTripBp} vs ${qm.spreadBp}`);
+  const small = legMetrics(quoteLevels({ bid1Price: "201.29", ask1Price: "201.47", bid1Size: "105", ask1Size: "3" }).asks,
+    quoteLevels({ bid1Price: "201.29", ask1Price: "201.47", bid1Size: "105", ask1Size: "3" }).bids);
+  check("beyond the quoted size is not priced", small.fills[2000].roundTripBp === null && small.fills[500].roundTripBp !== null);
+  check("a quote with no size is empty", quoteLevels({ bid1Price: "1", ask1Price: "2", bid1Size: "0", ask1Size: "0" }).asks.length === 0);
 
   const d = (iso) => sessionLabel(new Date(iso));
   check("regular session", d("2026-09-15T14:00:00Z") === "regular", d("2026-09-15T14:00:00Z"));

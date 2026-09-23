@@ -69,7 +69,7 @@ export interface SwitchAnalysis {
   breakevenDays: number;
 
   alternative: RouteId | null;
-  /** True when Bitget publishes no depth for the held route, so an exit cannot be priced. */
+  /** True when Bitget shows no two sided price for the held route, so an exit cannot be priced. */
   cannotExit: boolean;
 }
 
@@ -137,9 +137,11 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       ...base,
       verdict: "stuck",
       cannotExit: true,
-      message:
-        `Bitget does not publish how much is on offer for your ${ROUTE_NOUN[p.route]}, so we cannot price an exit ` +
-        `or a switch. It does trade: check its current price in the Bitget app.`,
+      message: held?.source === "quote"
+        ? `Bitget is not showing both a buying and a selling price for your ${ROUTE_NOUN[p.route]} right now, ` +
+          `so we cannot price an exit or a switch. Check again shortly.`
+        : `Bitget does not publish how much is on offer for your ${ROUTE_NOUN[p.route]}, so we cannot price an exit ` +
+          `or a switch. Check its current price in the Bitget app.`,
     };
   }
 

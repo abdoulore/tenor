@@ -103,7 +103,8 @@ export function factSheet(
           ? `funding ${usd(f.mid, n)}`
           : `funding ${usd(f.mid, n)}, could be ${usd(f.low, n)} to ${usd(f.high, n)}`);
       }
-      L.push(`${name}: total ${usd(r.totalBp.mid, n)} (${parts.join("; ")}). Fee rate is ${r.feeProvenance ?? "published"}.`);
+      L.push(`${name}: total ${usd(r.totalBp.mid, n)} (${parts.join("; ")}). Fee rate is ${r.feeProvenance ?? "published"}.` +
+        (r.source === "quote" ? " Priced from Bitget's live quote, which real test orders showed is what tokenized stock orders fill at, not the order book." : ""));
     } else {
       L.push(`${name}: not priced. ${r.reason ?? ""}`.trim());
     }
@@ -118,11 +119,17 @@ export function factSheet(
       ? `Verdict: neither can take the whole $${n.toLocaleString("en-US")} alone, but split across both it fills.`
       : "Verdict: there is no way to do this right now. All three are ruled out.");
   } else if (!second || !best.totalBp || !second.totalBp) {
-    L.push(`Verdict: only ${NAME[best.route]} can be priced or can do what was asked.`);
+    const blocked = quote.routes.find(
+      (r) => r.route !== "stockplus" && r.rank === null && (r.status === "no_book" || r.status === "cannot_fill"),
+    );
+    L.push(blocked
+      ? `Verdict: only ${NAME[best.route]} can be priced at this amount right now. ${blocked.reason ?? ""}`.trim()
+      : `Verdict: only ${NAME[best.route]} can do what was asked.`);
   } else {
     const diff = second.totalBp.mid - best.totalBp.mid;
     const band = Math.max(...quote.routes.map((r) => (r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0)));
-    if (band > Math.abs(diff)) {
+    // Unsettled only when the two cost ranges overlap, the same test as the page's headline.
+    if (second.totalBp.low < best.totalBp.high) {
       L.push(`Verdict: too close to call. ${cap(NAME[best.route])} is ahead by ${usd(diff, n)}, but funding could swing the result by ${usd(band, n)} over ${i.horizonDays} days. Buying and selling is the only part that can be priced firmly today.`);
     } else {
       L.push(`Verdict: use ${NAME[best.route]}. It saves ${usd(diff, n)}.`);

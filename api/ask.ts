@@ -90,9 +90,11 @@ Rules:
 const EXPLAIN =
   "Explain this result to the reader in two or three sentences: which way is cheaper and by how much, " +
   "and what decides it. Then, only if one applies, the single most useful extra point, in this order " +
-  "of priority: a split that saves money, a way that cannot be priced, a dividend or earnings report " +
+  "of priority: a split that saves money, the tokenized stock or the perpetual being unpriceable at " +
+  "this amount, a dividend or earnings report " +
   "inside the holding period, a time of day that is usually cheaper. Do not mention anything that " +
-  "falls after the holding period, and do not say that something does not apply.";
+  "falls after the holding period, do not mention Stock+, which is never priced, and do not say " +
+  "that something does not apply.";
 
 type Turn = { q: string; a: string };
 

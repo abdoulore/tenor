@@ -10,6 +10,7 @@
  */
 
 import receipts from "./data/receipts.json";
+import { QUOTE_TESTS, fillGaps } from "../../engine/evidence.ts";
 
 type Receipts = typeof receipts;
 
@@ -19,6 +20,8 @@ const when = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 export function Receipts({ notional = 2_000 }: { notional?: number }) {
   const r = receipts as Receipts;
   const acc = r.accuracy;
+  // Present once the report has been regenerated with the source of each call.
+  const sources = (r as unknown as { sources?: { book: number; quote: number } }).sources;
   const first = acc[0];
   const last = acc[acc.length - 1];
   const hour = r.stability.find((s) => s.lagMinutes === 60) ?? r.stability[0];
@@ -43,6 +46,49 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         answer. {fmt(r.predictions)} of them so far, on {r.tickers.length} companies, from{" "}
         {when(r.from)} to {when(r.to)}. Nothing here is chosen after the fact.
       </p>
+
+      {/*
+        * Said first, because it changes how everything below should be read. The earlier calls
+        * were a fair test of what they priced, but for the tokenized stock they priced the
+        * wrong thing, and a track record that buried that would be the dishonest kind.
+        */}
+      <div className="rnotice">
+        <strong>What this record measured.</strong> Until 23 September every call priced the
+        tokenized stock from Bitget's public order book. Our own test orders that day showed
+        tokenized stock orders fill at Bitget's quote instead, which is usually tighter. So the
+        earlier calls below are a fair test of the order book, but for the tokenized stock the
+        book was the wrong thing to measure. From then on it is priced from the quote.
+        {sources && (
+          <> {fmt(sources.book)} calls used the order book and {fmt(sources.quote)} the quote.</>
+        )}
+      </div>
+
+      <h3>The test orders</h3>
+      <p className="sub">
+        Four market orders of about $11 each on this account, all tagged StockRoute by Bitget.
+        Each fill is set against the quote read just before and just after it, and against the
+        order book at the time.
+      </p>
+      <table className="rtable">
+        <thead>
+          <tr><th>Order</th><th>Filled at</th><th>Quote said</th><th>Order book said</th><th>Off the quote</th></tr>
+        </thead>
+        <tbody>
+          {QUOTE_TESTS.map((t) => {
+            const g = fillGaps(t);
+            const px = (q: { bid: number; ask: number }) => (t.side === "buy" ? q.ask : q.bid);
+            return (
+              <tr key={t.orderId}>
+                <td>{t.side === "buy" ? "Buy" : "Sell"} {t.symbol.replace(/USDT$/, "").replace(/^R/, "r")}<span className="oid"> {t.orderId}</span></td>
+                <td>{t.fillPrice.toFixed(2)}</td>
+                <td>{px(t.before).toFixed(2)} then {px(t.after).toFixed(2)}</td>
+                <td>{t.book ? px(t.book).toFixed(2) : "empty"}</td>
+                <td>{g.quoteBp.toFixed(2)}bp</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
 
       <div className="rcards">
         <div className="rcard">
@@ -144,7 +190,7 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         </>
       )}
 
-      <h3>Calls about what could be priced at all</h3>
+      <h3>Calls about the order book</h3>
       <p className="sub">
         We found no published depth {fmt(r.availability.saidDead)} times, and an hour later
         that was still the case {r.availability.deadStillDeadPct}% of the time. We found depth{" "}
@@ -165,7 +211,8 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
             .map((o) => `${o.ticker}, whose depth disappeared from Bitget's feed from ${o.from.slice(11, 16)} to ${o.to.slice(11, 16)} UTC on ${o.from.slice(0, 10)}`)
             .join("; ")}
           , then came back. None of this means those markets were closed: names without
-          published depth still quote and trade, and their depth is simply not made public.
+          published depth still quote and trade, and since 23 September Tenor prices them from
+          their quote, which is what their orders fill at.
         </p>
       )}
       {structural && (
@@ -175,7 +222,8 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
           found with no published depth, and not one changed state in {spanDays} days of checks
           every five minutes. So this is not evidence that we predict anything. It is evidence
           that Bitget either publishes depth for a token or does not, consistently. Those
-          markets still quote and trade; their depth is simply not published.
+          markets still quote and trade, and since 23 September Tenor prices them from their
+          quote, which is what their orders fill at.
         </p>
       )}
 

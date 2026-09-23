@@ -7,7 +7,7 @@
  */
 
 // @ts-expect-error plain .mjs module, types declared in depth.d.mts
-import { levels, walk, sessionLabel } from "../sampler/depth.mjs";
+import { levels, quoteLevels, walk, sessionLabel } from "../sampler/depth.mjs";
 import type { Book, Execution, Fill, Level, Session } from "./types.ts";
 
 export { sessionLabel };
@@ -19,6 +19,12 @@ export function toBook(rawAsks: unknown, rawBids: unknown, ts: unknown): Book {
     bids: levels(rawBids) as Level[],
     ts: Number.isFinite(n) && n > 0 ? n : null,
   };
+}
+
+/** Bitget's ticker row for a tokenized stock, as a one level book. See quoteLevels. */
+export function quoteBook(row: unknown): Book {
+  const q = quoteLevels(row) as { asks: Level[]; bids: Level[]; ts: number | null };
+  return { asks: q.asks, bids: q.bids, ts: q.ts, source: "quote" };
 }
 
 export const isEmpty = (b: Book): boolean => b.asks.length === 0 || b.bids.length === 0;

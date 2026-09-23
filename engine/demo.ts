@@ -12,7 +12,7 @@ import { sessionLabel } from "./book.ts";
 import { DEFAULT_FEES, FLIP_TEST_FEES, feeGapBp, roundTripFeeBp, unverifiedLegs } from "./fees.ts";
 import { logPrediction } from "./predictions.ts";
 import { betterSession, priceIntent } from "./engine.ts";
-import { fetchBook, fetchFunding, resolvePair, sessionOutlook } from "./live.ts";
+import { fetchBook, fetchFunding, fetchQuote, resolvePair, sessionOutlook } from "./live.ts";
 import { DEFAULT_CONSTRAINTS, type Intent, type Quote, type RouteResult, type Session } from "./types.ts";
 
 const arg = (name: string, fallback: string): string => {
@@ -115,7 +115,8 @@ async function main(): Promise<void> {
     console.log(`  ${ticker}: ${pair.spotSymbol} against ${pair.perpSymbol}, funding every ${pair.fundingIntervalHours}h`);
 
     const [spotBook, perpBook, funding, outlook] = await Promise.all([
-      fetchBook("SPOT", pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null })),
+      // The tokenized stock is priced from its quote, which is what its orders fill at.
+      fetchQuote(pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null, source: "quote" as const })),
       fetchBook("USDT-FUTURES", pair.perpSymbol).catch(() => ({ asks: [], bids: [], ts: null })),
       fetchFunding(pair.perpSymbol).catch(() => []),
       sessionOutlook(ticker, SIZE, DATA_DIR),

@@ -108,6 +108,11 @@ export function SessionChart({
     if (!priced.length) return null;
 
     const parts: string[] = [];
+    // Quote recording began on 23 September, so for a while only the perpetual has a full day.
+    const onlyPerp = priced.length === 1 && priced[0].route === "perp";
+    if (onlyPerp) {
+      parts.push("Only the perpetual has been measured through the day so far. The tokenized stock's quote has been recorded since 23 September and its hours fill in as it builds up.");
+    }
 
     // Does the hour actually matter for this ticker, and by how much.
     const swings = priced.map((ser) => {
@@ -127,7 +132,7 @@ export function SessionChart({
       );
     } else {
       parts.push(
-        `The hour barely matters for ${ticker}: everything sits between ` +
+        `The hour barely matters for ${onlyPerp ? `the ${ticker} perpetual` : ticker}: everything sits between ` +
         `${money(Math.min(...priced.flatMap((p) => p.vals)))} and ` +
         `${money(Math.max(...priced.flatMap((p) => p.vals)))}.`,
       );
@@ -163,7 +168,9 @@ export function SessionChart({
       <h2>What it costs to trade {ticker}, hour by hour</h2>
       <p className="sub">
         The round trip on ${size.toLocaleString()}: what you lose to the spread getting in and
-        back out. Fees and funding are not in this chart.
+        back out. Fees and funding are not in this chart. The tokenized stock is measured from
+        Bitget's quote, which is what its orders fill at, and we started recording that on 23
+        September, so some hours are not measured yet.
         {requested !== size && (
           <>
             {" "}You asked about ${requested.toLocaleString()}, and ${size.toLocaleString()} is the
@@ -215,7 +222,7 @@ export function SessionChart({
                   <g key={i}>
                     <line x1={x(i)} x2={x(i)} y1={PAD.top + innerH - 6} y2={PAD.top + innerH + 6} className="gapmark" />
                     <text x={x(i)} y={PAD.top + innerH - 14} className="gaptext" textAnchor="middle">
-                      {p.empty ? "no depth" : "no data"}
+                      {p.empty ? "no price" : "not measured yet"}
                     </text>
                   </g>
                 ) : (
