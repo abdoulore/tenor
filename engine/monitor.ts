@@ -138,8 +138,8 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       verdict: "stuck",
       cannotExit: true,
       message: held?.source === "quote"
-        ? `Bitget is not showing both a buying and a selling price for your ${ROUTE_NOUN[p.route]} right now, ` +
-          `so we cannot price an exit or a switch. Check again shortly.`
+        ? `Bitget is not quoting both a bid and an ask for your ${ROUTE_NOUN[p.route]} right now, ` +
+          `so an exit or a switch cannot be priced. Check again shortly.`
         : `Bitget does not publish how much is on offer for your ${ROUTE_NOUN[p.route]}, so we cannot price an exit ` +
           `or a switch. Check its current price in the Bitget app.`,
     };

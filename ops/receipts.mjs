@@ -179,9 +179,8 @@ async function main() {
 
   // ------------------------------------------------------------ 2. availability
   //
-  // The strongest claim the product makes is "nobody is quoting a price for this". It is
-  // also the easiest to be wrong about in an embarrassing way, so it is checked in both
-  // directions: did a dead market stay dead, and did a live one stay live.
+  // When a route could not be priced, was that still true an hour later, and when it could,
+  // was it still priceable. Checked in both directions.
   const avail = {
     saidDead: 0, deadStillDead: 0,
     saidLive: 0, liveStillLive: 0,
@@ -319,9 +318,9 @@ async function main() {
       horizonDays: horizons,
       elapsedDays: round(oldestMs / 86_400_000, 1),
       note:
-        "Every prediction projects funding over 30 days. The oldest is " +
-        `${(oldestMs / 86_400_000).toFixed(1)} days old, so none has run its course. ` +
-        "The funding half of these forecasts cannot be scored yet and is not included above.",
+        "Each call projects funding over 30 days. The oldest is " +
+        `${(oldestMs / 86_400_000).toFixed(1)} days in. Funding is scored once a forecast ` +
+        "completes, and the figures above cover trading costs.",
     },
   };
 

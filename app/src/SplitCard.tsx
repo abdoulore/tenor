@@ -111,8 +111,8 @@ export function SplitCard({ plan }: { plan: SplitPlan }) {
       </svg>
 
       <p className="note">
-        Two positions to manage instead of one. Only the perpetual part pays funding. Priced by
-        walking both live books for each part's share of the order.
+        Two positions to manage instead of one. Only the perpetual part pays funding. Each part is
+        priced from Bitget's live quote and order book.
       </p>
     </section>
   );

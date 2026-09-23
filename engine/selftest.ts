@@ -269,7 +269,8 @@ group("engine: gates");
   })());
   check("the perp no longer raises an unverified warning",
     !q.warnings.some((w) => /not confirmed/i.test(w) && /perp/.test(w)));
-  check("the BGB caveat is still surfaced", q.warnings.some((w) => /BGB/.test(w)));
+  check("the BGB caveat stays with the fee schedule, not under every answer",
+    /BGB/.test(ACCOUNT_FEES.spot.caveat ?? "") && !q.warnings.some((w) => /BGB/.test(w)));
 }
 
 group("engine: empty book is a headline state");
@@ -793,8 +794,8 @@ group("the tokenized stock is priced from Bitget's quote");
   });
   const bigRt = big.routes.find((r) => r.route === "rtoken")!;
   check("beyond the quoted size the tokenized stock is not priced", bigRt.status === "cannot_fill", bigRt.status);
-  check("and the page says it cannot see further, not that the price would move",
-    /cannot see what you would pay/.test(bigRt.reason ?? "") && !/move the price/.test(bigRt.reason ?? ""), bigRt.reason ?? "");
+  check("and the page states the quoted size, not that the price would move",
+    /quote for the tokenized stock covers about \$/.test(bigRt.reason ?? "") && !/move the price/.test(bigRt.reason ?? ""), bigRt.reason ?? "");
 
   const none = priceIntent(intent(), {
     session: "regular", books: { rtoken: quoteBook({ bid1Price: "0", ask1Price: "0", bid1Size: "0", ask1Size: "0" }), perp: makeBook(2, 1_000) },
@@ -803,7 +804,7 @@ group("the tokenized stock is priced from Bitget's quote");
   const noneRt = none.routes.find((r) => r.route === "rtoken")!;
   check("with no two sided quote the tokenized stock cannot be priced", noneRt.status === "no_book");
   check("and the reason names the missing price, not the order book",
-    /not showing both a buying and a selling price/.test(noneRt.reason ?? ""), noneRt.reason ?? "");
+    /not quoting both a bid and an ask/.test(noneRt.reason ?? ""), noneRt.reason ?? "");
 
   check("four test orders are recorded", QUOTE_TESTS.length === 4);
   check("every test order filled within 2bp of the quote", QUOTE_TESTS.every((t) => fillGaps(t).quoteBp <= 2),

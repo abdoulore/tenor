@@ -11,6 +11,9 @@ import { useEffect, useState } from "react";
 import { shareOutlook, type ShareFacts as Facts } from "../../engine/equity.ts";
 import type { Session } from "../../engine/types.ts";
 
+const dollars = (x: number) =>
+  `$${x.toLocaleString(undefined, { minimumFractionDigits: x < 100 ? 2 : 0, maximumFractionDigits: x < 100 ? 2 : 0 })}`;
+
 const fmtDate = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -80,9 +83,9 @@ export function ShareFacts({
         <p>
           Next dividend: {out.nextDividend.announced ? "announced for " : "around "}<strong>{fmtDate(out.nextDividend.date)}</strong>, about $
           {out.nextDividend.amount.toFixed(2)} a share
-          {out.nextDividend.yieldPct !== null && <>, or <strong>${((out.nextDividend.yieldPct / 100) * notional).toFixed(2)}</strong> on your ${notional.toLocaleString()}</>}.{" "}
+          {out.nextDividend.yieldPct !== null && <>, or <strong>{dollars((out.nextDividend.yieldPct / 100) * notional)}</strong> on your ${notional.toLocaleString()}</>}.{" "}
           {out.nextDividend.inHorizon ? <strong>That falls inside your {horizonDays} days.</strong> : `That is after your ${horizonDays} days.`}{" "}
-          <span className="dim">We have not confirmed whether either Bitget wrapper passes dividends on.</span>
+          <span className="dim">Whether it reaches token or perpetual holders depends on Bitget's terms.</span>
         </p>
       ) : facts.dividends.length === 0 ? (
         <p className="dim">{ticker} has no dividend history in Bitget's data.</p>
@@ -97,7 +100,7 @@ export function ShareFacts({
 
       <p className="note">
         From Bitget's market data service. Dates marked "around" are projected from the company's
-        own past dates, not announced, and records that cannot be right are left out.
+        past schedule.
       </p>
     </section>
   );

@@ -76,14 +76,16 @@ export function priceIntent(intent: Intent, inputs: PricingInputs): Quote {
 
   // A leg still on a published rate may be priced too expensive. A leg measured from fills
   // may still carry a caveat, which is a different thing and is said differently.
-  const unverified = unverifiedLegs(fees);
+  // Stock+ is never ranked, so a note about its fee rate would only be noise under every answer.
+  const unverified = unverifiedLegs(fees).filter((l) => l !== "stockplus");
   if (unverified.length) {
     warnings.push(
-      `We have not confirmed the real trading fee for ${unverified.join(" and ")} on this account, ` +
-      `so we used Bitget's published rate. The true cost may be lower.`,
+      `The ${unverified.join(" and ")} fee uses Bitget's published rate. Your account's rate may be lower.`,
     );
   }
-  for (const c of feeCaveats(fees)) if (!warnings.includes(c)) warnings.push(c);
+  // Fee caveats, such as BGB pricing on the spot fee, stay with the fee schedule and its receipts.
+  // They explain a measured rate rather than change an answer, so they are not repeated here.
+  void feeCaveats;
 
   return {
     intent,
@@ -166,8 +168,7 @@ function priceRoute(
       feeProvenance: feeLegFor(route, fees).provenance,
       feeSource: feeLegFor(route, fees).source,
       reason:
-        "Bitget does not publish live prices for Stock+, so we cannot tell you what it would really cost " +
-        "and we will not guess. Its fee alone is " +
+        "Bitget does not publish live prices for Stock+, so only its fee is shown: " +
         `${(round(roundTripFeeBp(route, fees), 2) / 100).toFixed(3)}% to buy and sell.`,
     };
   }
@@ -183,7 +184,7 @@ function priceRoute(
       ...base,
       status: "no_book",
       reason: quoted
-        ? `Bitget is not showing both a buying and a selling price for ${theRoute(route)} right now, so we cannot price it.`
+        ? `Bitget is not quoting both a bid and an ask for ${theRoute(route)} right now.`
         : `Bitget does not publish how much is on offer for ${theRoute(route)}, so we cannot price it.`,
       absorbableUsd: 0,
     };
@@ -222,8 +223,8 @@ function priceRoute(
       feeSource: feeLegFor(route, fees).source,
       fundingBp: partialFunding,
       reason: quoted
-        ? `Bitget's price for ${theRoute(route)} covers about $${canTake.toLocaleString()}, and you asked for ` +
-          `$${intent.notionalUsd.toLocaleString()}. Beyond that we cannot see what you would pay, so we will not guess.`
+        ? `Bitget's quote for ${theRoute(route)} covers about $${canTake.toLocaleString()} of your ` +
+          `$${intent.notionalUsd.toLocaleString()}.`
         : `Only about $${canTake.toLocaleString()} of ${theRoute(route)} is on offer, ` +
           `and you asked for $${intent.notionalUsd.toLocaleString()}. You would move the price against yourself.`,
     };
@@ -241,7 +242,7 @@ function priceRoute(
     });
     fundingBp = proj.bp;
     if (proj.missing) {
-      const w = "No funding history for this perpetual yet, so funding is shown as zero. The real figure can only be higher.";
+      const w = "This perpetual has no funding history yet, so its cost does not include funding.";
       if (!warnings.includes(w)) warnings.push(w);
     }
   } else {

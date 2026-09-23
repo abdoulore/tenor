@@ -1,12 +1,7 @@
 /**
  * The parsed intent, as controls you can change.
  *
- * These used to be read-only chips describing what the sentence was understood to mean.
- * That had two problems. Correcting a misreading meant rewriting your sentence and hoping,
- * and the chips described the last parse while the follow-up buttons changed the intent
- * underneath them, so the two could disagree on screen.
- *
- * Now the controls are the intent. The sentence only seeds them. Anything you change here
+ * The controls are the intent. The sentence only seeds them. Anything you change here
  * is what gets priced, and each field says whether it came from your words, a default, or
  * your own edit.
  */

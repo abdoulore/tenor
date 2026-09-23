@@ -26,11 +26,8 @@ const arg = (name: string, fallback: string): string => {
 const ARGS = new Set(process.argv.slice(2));
 
 /*
- * The watchlist deliberately spans all three states, in roughly equal thirds.
- *
- * It used to be ten names, of which exactly one had a dead market, which is why the
- * availability receipt had a sample of one and could say nothing. Twelve dead names give
- * that result something to stand on.
+ * The watchlist spans three kinds of market in equal thirds: liquid names, wide names, and
+ * names for which Bitget publishes no order book depth, so every kind is covered by the log.
  *
  * This cannot be backfilled: a name added today has a week of history by the deadline, and
  * a name added on the last day has none. So breadth is worth buying early even though the
@@ -39,10 +36,10 @@ const ARGS = new Set(process.argv.slice(2));
 const LIQUID = "NVDA MSFT GOOGL SPY QQQ AAPL TSLA META AMZN MU SNDK PLTR";
 /** Liquid enough to trade, but wide, where execution decides and the answer moves. */
 const WIDE = "AAOI IONQ HOOD ORCL INTC COHR ASTS MARA QCOM WDC ABNB CRWV";
-/** Listed by Bitget, never once quoted a price while we have been watching. */
-const DEAD = "SOXL NFLX MCD LLY XOM GE UBER BA NKE PANW SMCI ZS";
+/** No order book depth published by Bitget. Priced from the quote like every tokenized stock. */
+const NO_DEPTH = "SOXL NFLX MCD LLY XOM GE UBER BA NKE PANW SMCI ZS";
 
-const TICKERS = arg("--tickers", [LIQUID, WIDE, DEAD].join(" ").replace(/\s+/g, ","))
+const TICKERS = arg("--tickers", [LIQUID, WIDE, NO_DEPTH].join(" ").replace(/\s+/g, ","))
   .split(",").map((t) => t.trim().toUpperCase()).filter(Boolean);
 const SIZES = arg("--sizes", "2000,10000").split(",").map(Number);
 const HORIZON = Number(arg("--horizon", "30"));

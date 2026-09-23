@@ -114,7 +114,9 @@ export function factSheet(
   const best = quote.routes.find((r) => r.rank === 1);
   const second = quote.routes.find((r) => r.rank === 2);
   const s = opts.split;
-  if (!best) {
+  if (best && s?.worthIt && s.bestSingle) {
+    L.push(`Verdict: split it across both. It saves ${money(s.savingUsd)} against the cheapest single way.`);
+  } else if (!best) {
     L.push(s?.worthIt && s.bestSingle === null
       ? `Verdict: neither can take the whole $${n.toLocaleString("en-US")} alone, but split across both it fills.`
       : "Verdict: there is no way to do this right now. All three are ruled out.");
@@ -130,11 +132,11 @@ export function factSheet(
     const band = Math.max(...quote.routes.map((r) => (r.fundingBp ? r.fundingBp.high - r.fundingBp.low : 0)));
     // Unsettled only when the two cost ranges overlap, the same test as the page's headline.
     if (second.totalBp.low < best.totalBp.high) {
-      L.push(`Verdict: too close to call. ${cap(NAME[best.route])} is ahead by ${usd(diff, n)}, but funding could swing the result by ${usd(band, n)} over ${i.horizonDays} days. Buying and selling is the only part that can be priced firmly today.`);
+      L.push(`Verdict: too close to call. ${cap(NAME[best.route])} is ahead by ${usd(diff, n)}, but funding could move the result by ${usd(band, n)} over ${i.horizonDays} days. The trading costs are firm; funding is a forecast.`);
     } else {
       L.push(`Verdict: use ${NAME[best.route]}. It saves ${usd(diff, n)}.`);
       L.push(quote.horizonDecides
-        ? "The two are close enough that the holding period decides which is cheaper."
+        ? "Their trading costs are close, so funding on the perpetual decides which is cheaper."
         : "What decides it is the cost of getting in and out, not the holding period.");
     }
   }
@@ -177,7 +179,7 @@ export function factSheet(
       const d = sh.nextDividend;
       L.push(`Next dividend: ${d.announced ? "announced for" : "projected around"} ${dateWords(d.date)}, $${d.amount.toFixed(2)} a share` +
         (d.yieldPct !== null ? `, ${money((d.yieldPct / 100) * n)} on this amount` : "") +
-        `, ${d.inHorizon ? "inside" : "after"} the holding period. Whether Bitget passes dividends on is unconfirmed.`);
+        `, ${d.inHorizon ? "inside" : "after"} the holding period. Whether it reaches token or perpetual holders depends on Bitget's terms.`);
     }
     if (sh.nextEarnings) {
       const e = sh.nextEarnings;

@@ -76,9 +76,8 @@ export const CAPABILITIES: Record<RouteId, RouteCapability> = {
     canShort: true,
     maxLeverage: 100,
     /*
-     * Unconfirmed, not false. Some venues adjust perpetuals for dividends and some do not, and
-     * we have not established what Bitget does. This used to be `false`, which ruled the
-     * perpetual out for anyone wanting dividends on the strength of an assumption.
+     * Unconfirmed, not false. Some venues adjust perpetuals for dividends and some do not, so
+     * this is left to Bitget's terms rather than assumed either way.
      */
     paysDividends: null,
     // Structural: a futures contract is not share ownership, so it carries no vote.
@@ -152,7 +151,7 @@ export function checkEligibility(
       };
     }
     if (cap.paysDividends === null) {
-      unverified.push(`We have not confirmed whether ${theRoute(route)} pays dividends on Bitget.`);
+      unverified.push(`Whether ${theRoute(route)} passes dividends on depends on Bitget's terms for it.`);
     }
   }
 
@@ -165,7 +164,7 @@ export function checkEligibility(
       };
     }
     if (cap.usableAsCollateral === null) {
-      unverified.push(`We have not confirmed whether ${theRoute(route)} can be used as collateral on Bitget.`);
+      unverified.push(`Whether ${theRoute(route)} can be used as collateral depends on Bitget's account settings.`);
     }
   }
 

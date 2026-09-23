@@ -1,10 +1,10 @@
 /**
  * The test orders that decided how the tokenized stock is priced.
  *
- * Tenor used to price the tokenized stock by walking Bitget's public order book, as it does for
- * the perpetual. On 23 September 2026 that book for rNVDA sat a full 0.7% away from Bitget's own
- * ticker for over half an hour, with a bid above the ticker's ask, so the two could not both be
- * what an order fills at. Four small market orders settled which one is.
+ * Bitget publishes two prices for a tokenized stock: its order book and its ticker's best bid and
+ * ask. On 23 September 2026 the rNVDA book sat 0.7% away from the ticker for over half an hour,
+ * with a bid above the ticker's ask, so the two could not both be what an order fills at. Four
+ * live market orders settled which one is.
  *
  * All four were tagged StockRoute in the Bitget app and all four filled at the ticker's quote.
  * For rNVDA the order book was wider and did not move while the quote did; for rBA the order

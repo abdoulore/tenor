@@ -95,8 +95,7 @@ export function BreakEven({
       <h2>What it costs you the longer you hold</h2>
       <p className="sub">
         The tokenized stock charges you once on the round trip, so its line is flat. The
-        perpetual keeps accruing funding, so its line climbs. The shaded area is how wrong
-        that funding projection could turn out to be.
+        perpetual keeps accruing funding, so its line climbs. The shaded band is the range of the funding forecast.
       </p>
 
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="What it costs you the longer you hold">

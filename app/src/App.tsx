@@ -50,6 +50,15 @@ const SESSION_WORDS: Record<string, string> = {
   weekend: "Weekend, US markets shut",
 };
 
+/** The same sessions as they read in the middle of a sentence. */
+const SESSION_PHRASE: Record<string, string> = {
+  regular: "during US market hours",
+  premarket: "before the US open",
+  afterhours: "after the US close",
+  overnight: "overnight",
+  weekend: "at the weekend",
+};
+
 type OutlookFile = typeof outlookData;
 
 /** Turn the bundled medians into the shape the engine wants. */
@@ -86,6 +95,9 @@ const usd = (bp: number, notional: number) => {
   })}`;
 };
 
+/** A dollar amount already in dollars, formatted like usd(). */
+const usdAmount = (d: number) => usd(10_000, d);
+
 /** The same number as a percentage of the position, for the people who prefer it. */
 const pctOf = (bp: number | null | undefined) =>
   bp === null || bp === undefined ? "n/a" : `${(bp / 100).toFixed(3)}%`;
@@ -120,10 +132,10 @@ function Range({ r, notional }: { r: { low: number; mid: number; high: number };
 }
 
 const STATUS_COPY: Record<string, { title: string; tone: string }> = {
-  no_book: { title: "No price right now", tone: "warn" },
-  cannot_fill: { title: "Larger than we can see", tone: "warn" },
+  no_book: { title: "No quote right now", tone: "warn" },
+  cannot_fill: { title: "Above quoted size", tone: "warn" },
   ineligible: { title: "Will not do what you asked", tone: "dead" },
-  modeled: { title: "Cannot be priced", tone: "muted" },
+  modeled: { title: "Fee only", tone: "muted" },
   stale: { title: "Prices a moment old", tone: "warn" },
 };
 
@@ -150,8 +162,8 @@ function RouteCard({
       <div className="blurb">{ROUTE_BLURBS[r.route]}</div>
       {r.source === "quote" && (
         <div className="source-note">
-          Priced from Bitget's live quote, which is what tokenized stock orders fill at. Our own
-          test orders filled at the quote, not at the order book.
+          Priced from Bitget's live quote, the price tokenized stock orders fill at, verified
+          with live test orders.
         </div>
       )}
 
@@ -203,16 +215,15 @@ function RouteCard({
 
           {wideBand && (
             <div className="note loud">
-              Most of this cost is funding, and nobody can tell you what that will be
-              over {horizonDays} days. The uncertainty is larger than the gap between the two
-              options, so treat this ranking as a coin toss rather than an answer.
+              Most of this cost is funding over {horizonDays} days, which is a forecast. Its range
+              is wider than the gap between the two options, so the ranking could change.
             </div>
           )}
 
           {r.absorbableUsd !== null && r.absorbableUsd < notional * 3 && (
             <div className="note">
               {r.source === "quote"
-                ? `Bitget's price covers about $${r.absorbableUsd.toLocaleString()}. Beyond that we cannot see what a larger order would pay.`
+                ? `Bitget's quote covers about $${r.absorbableUsd.toLocaleString()} at this price.`
                 : `Only about $${r.absorbableUsd.toLocaleString()} is on offer, so a much larger order would start moving the price against you.`}
             </div>
           )}
@@ -282,7 +293,7 @@ export default function App() {
     if (id !== reqId.current) return false;
     if (!p) {
       throw new Error(
-        `Bitget does not offer both a tokenized stock and a futures contract for ${ticker}, ` +
+        `Bitget does not offer both a tokenized stock and a perpetual for ${ticker}, ` +
         `so there is nothing to compare. Try a larger US name such as NVDA, AAPL or TSLA.`,
       );
     }
@@ -430,7 +441,10 @@ export default function App() {
   const coverage = (outlookData as OutlookFile).coverage;
 
   const share = useShareFacts(asked && intent ? intent.ticker : null);
-  const tokenMid = quote?.routes.find((r) => r.route === "rtoken")?.execution?.mid ?? null;
+  // From the quote itself, so the comparison with the share holds even when the route is ruled out.
+  const tokenMid = books && books.spot.asks.length && books.spot.bids.length
+    ? (books.spot.asks[0][0] + books.spot.bids[0][0]) / 2
+    : null;
   const shareOut = useMemo(
     () => (share.facts && intent ? shareOutlook(share.facts, tokenMid, Date.now(), intent.horizonDays) : null),
     [share.facts, tokenMid, intent],
@@ -603,9 +617,9 @@ export default function App() {
                 const b = outlook ? betterSession(outlook[route], session) : null;
                 return b ? (
                   <div className="hint" key={route}>
-                    The {route === "rtoken" ? "tokenized stock" : "futures contract"} is usually{" "}
+                    The {route === "rtoken" ? "tokenized stock" : "perpetual"} is usually{" "}
                     <strong>{usd(b.savingBp, intent.notionalUsd)} cheaper</strong> to trade{" "}
-                    {SESSION_WORDS[b.session].toLowerCase()} than right now.
+                    {SESSION_PHRASE[b.session]} than right now.
                   </div>
                 ) : null;
               })}
@@ -667,7 +681,7 @@ export default function App() {
                   : `Prices read from Bitget ${Math.round((now - fetchedAt) / 1000)} seconds ago.`}
                 {" "}The hour-by-hour figures come from {coverage.records.toLocaleString()} price
                 checks taken every five minutes between {String(coverage.from).slice(0, 10)} and{" "}
-                {String(coverage.to).slice(0, 10)}. That is a few days of evidence, not years of it.
+                {String(coverage.to).slice(0, 10)}.
               </div>
             )}
           </section>
@@ -675,11 +689,11 @@ export default function App() {
       )}
 
       <footer>
-        Every price here is read live from Bitget and worked out with ordinary arithmetic.
-        The AI reads your sentence and explains the result. It never works out a number: any
-        answer with a figure the engine did not produce is not shown.
+        Every price here is read live from Bitget and worked out by a deterministic cost engine.
+        The AI reads your sentence and explains the result, and every figure it writes is checked
+        against the engine before it is shown.
         Fees used: {pctOf(roundTripFeeBp("rtoken", DEFAULT_FEES))} to buy and sell the tokenized stock,
-        {" "}{pctOf(roundTripFeeBp("perp", DEFAULT_FEES))} for the futures contract.
+        {" "}{pctOf(roundTripFeeBp("perp", DEFAULT_FEES))} for the perpetual.
       </footer>
     </div>
   );
@@ -703,6 +717,20 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
       <div className="verdict only">
         <strong>Neither can take all ${notional.toLocaleString()} alone. Split it across both.</strong>
         <span>The split below fills the whole order from the two live books together.</span>
+      </div>
+    );
+  }
+
+  // A split that beats the best single route is the answer, so it leads.
+  if (best && split?.worthIt && split.bestSingle) {
+    return (
+      <div className="verdict">
+        <strong>Split it across both. It saves you {usdAmount(split.savingUsd)}.</strong>
+        <span>
+          {usdAmount(split.perpUsd)} through the perpetual and {usdAmount(split.tokenUsd)} through the
+          tokenized stock, about {usdAmount(split.totalUsd)} in total on ${notional.toLocaleString()} of{" "}
+          {quote.intent.ticker}.
+        </span>
       </div>
     );
   }
@@ -735,8 +763,8 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
 
   const diff = second.totalBp!.mid - best.totalBp!.mid;
   /*
-   * If the funding forecast could put the runner up ahead, the ranking is a coin toss wearing a
-   * suit. Say that in the headline, not the footnotes. It only is when the two cost ranges
+   * If the funding forecast could put the runner up ahead, the ranking is not settled, and the
+   * headline says so. It only is when the two cost ranges
    * overlap: a band wider than the gap does not matter if even the runner up's best case costs
    * more than the leader's worst.
    */
@@ -749,9 +777,8 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
         <strong>Too close to call.</strong>
         <span>
           {TheRoute(best.route)} is ahead by {usd(diff, notional)}, but funding on
-          the perpetual could swing the result by {usd(widestBand, notional)} over{" "}
-          {quote.intent.horizonDays} days. Buying and selling is the only part anyone can price
-          honestly today.
+          the perpetual could move the result by {usd(widestBand, notional)} over{" "}
+          {quote.intent.horizonDays} days. The trading costs are firm; funding is a forecast.
         </span>
       </div>
     );
@@ -764,7 +791,7 @@ function Verdict({ quote, notional, split }: { quote: Quote; notional: number; s
         On ${notional.toLocaleString()} of {quote.intent.ticker}, held {quote.intent.horizonDays} days.
         {" "}
         {quote.horizonDecides
-          ? "The two are close enough that how long you hold is what decides it."
+          ? "Their trading costs are close, so funding on the perpetual decides it."
           : "What decides it is the cost of getting in and back out, not the holding period."}
       </span>
     </div>

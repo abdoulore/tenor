@@ -208,8 +208,8 @@ export function Conversation({
             )}
             {e.state === "withheld" && (
               <p className="talk-a withheld">
-                The answer used a figure Tenor did not work out, so it is not shown. Every figure on the
-                page is unaffected. <button type="button" className="linklike" onClick={() => retry(e)}>Try again</button>
+                That answer included a figure the engine did not produce, so it was held back.{" "}
+                <button type="button" className="linklike" onClick={() => retry(e)}>Try again</button>
               </p>
             )}
             {e.state === "busy" && (
@@ -219,7 +219,7 @@ export function Conversation({
             )}
             {e.state === "unavailable" && (
               <p className="talk-a dim">
-                The explanation is not available right now. Every figure on the page still stands.{" "}
+                The explanation is not available right now.{" "}
                 <button type="button" className="linklike" onClick={() => retry(e)}>Try again</button>
               </p>
             )}
@@ -244,8 +244,8 @@ export function Conversation({
       {children}
 
       <p className="note">
-        Written by Claude from Tenor's own numbers. An answer with any figure Tenor did not work out
-        is not shown.
+        Written by Claude from Tenor's figures. Every number is checked against the engine before
+        it is shown.
       </p>
     </section>
   );

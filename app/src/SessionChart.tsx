@@ -82,8 +82,7 @@ export function SessionChart({
     );
   }
 
-  // Sane ticks. The old axis divided the raw maximum into four, which produced labels like
-  // 10 8 5 3 0 that collide, and 3 2 1 1 0 that repeat a value.
+  // Round tick steps, so axis labels never collide or repeat a value.
   const { max, step } = niceScale(Math.max(...values));
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
@@ -110,9 +109,6 @@ export function SessionChart({
     const parts: string[] = [];
     // Quote recording began on 23 September, so for a while only the perpetual has a full day.
     const onlyPerp = priced.length === 1 && priced[0].route === "perp";
-    if (onlyPerp) {
-      parts.push("Only the perpetual has been measured through the day so far. The tokenized stock's quote has been recorded since 23 September and its hours fill in as it builds up.");
-    }
 
     // Does the hour actually matter for this ticker, and by how much.
     const swings = priced.map((ser) => {
@@ -141,7 +137,6 @@ export function SessionChart({
     // Which one is cheaper, and whether that ever changes.
     if (priced.length === 2) {
       const [a, b] = priced;
-      const aWins = a.points ?? null;
       let aCheaper = 0;
       let bCheaper = 0;
       for (const sess of SESSIONS) {
@@ -150,7 +145,6 @@ export function SessionChart({
         if (av === null || bv === null || av === undefined || bv === undefined) continue;
         if (av < bv) aCheaper++; else if (bv < av) bCheaper++;
       }
-      void aWins;
       if (aCheaper && !bCheaper) parts.push(`The ${a.label} is cheaper to trade at every hour we measured.`);
       else if (bCheaper && !aCheaper) parts.push(`The ${b.label} is cheaper to trade at every hour we measured.`);
       else if (aCheaper && bCheaper) parts.push(`Which is cheaper to trade changes with the hour.`);
@@ -169,13 +163,11 @@ export function SessionChart({
       <p className="sub">
         The round trip on ${size.toLocaleString()}: what you lose to the spread getting in and
         back out. Fees and funding are not in this chart. The tokenized stock is measured from
-        Bitget's quote, which is what its orders fill at, and we started recording that on 23
-        September, so some hours are not measured yet.
+        Bitget's live quote.
         {requested !== size && (
           <>
-            {" "}You asked about ${requested.toLocaleString()}, and ${size.toLocaleString()} is the
-            closest size we have actually measured, so that is what is shown here. The prices on
-            your options tab use your real amount.
+            {" "}Shown at ${size.toLocaleString()}, the nearest measured size; your options tab uses
+            your exact ${requested.toLocaleString()}.
           </>
         )}
       </p>
@@ -222,7 +214,7 @@ export function SessionChart({
                   <g key={i}>
                     <line x1={x(i)} x2={x(i)} y1={PAD.top + innerH - 6} y2={PAD.top + innerH + 6} className="gapmark" />
                     <text x={x(i)} y={PAD.top + innerH - 14} className="gaptext" textAnchor="middle">
-                      {p.empty ? "no price" : "not measured yet"}
+                      {p.empty ? "no quote" : "collecting"}
                     </text>
                   </g>
                 ) : (
@@ -267,8 +259,9 @@ export function SessionChart({
         {/* Count samples that actually had a book. "413 rToken samples" beside four
             no-book marks reads as data supporting a line that is not there. */}
         <span className="samples">
-          Based on {withBook(series[0].points)} price checks for the tokenized stock and{" "}
-          {withBook(series[1].points)} for the futures
+          {withBook(series[0].points) !== "0"
+            ? <>Based on {withBook(series[0].points)} price checks for the tokenized stock and {withBook(series[1].points)} for the perpetual</>
+            : <>Based on {withBook(series[1].points)} price checks for the perpetual</>}
         </span>
       </div>
     </section>

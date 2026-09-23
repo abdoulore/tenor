@@ -150,8 +150,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
     <section className="monitor">
       <h2>Positions you already hold</h2>
       <p className="sub">
-        Entered by hand. Bitget does not let anything read your stock positions, so nothing
-        here is synced and nothing is sent anywhere. It stays in this browser.
+        Entered by hand and kept in this browser. Nothing is sent anywhere.
       </p>
 
       <div className="addpos">
@@ -245,8 +244,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
       {positions.length === 0 && (
         <p className="sub">
           Add a position above and this will watch it, then tell you if moving it would save
-          more than moving costs. It will also tell you when it would not, which is most of
-          the time.
+          more than moving costs, or that staying put is cheaper.
         </p>
       )}
 
