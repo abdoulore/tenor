@@ -52,9 +52,9 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
     <section className="receipts">
       <h2>What this tool has said, and whether it held up</h2>
       <p className="sub">
-        Every recommendation is written down the moment it is made, before anyone knows the
-        answer. {fmt(r.predictions)} of them so far, on {r.tickers.length} companies, from{" "}
-        {when(r.from)} to {when(r.to)}. Nothing here is chosen after the fact.
+        Every 15 minutes Tenor makes a call on the same {r.tickers.length} companies, at $2,000 and
+        $10,000, and writes it down before anyone knows the answer. {fmt(r.predictions)} so far,
+        from {when(r.from)} to {when(r.to)}. Nothing here is chosen after the fact.
       </p>
 
       <div className="rnotice">

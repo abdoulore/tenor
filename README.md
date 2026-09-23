@@ -55,8 +55,8 @@ derivable from the other. Order numbers are in [`engine/fees.ts`](engine/fees.ts
 
 ## Track record
 
-Every recommendation is written down the moment it is made, before the answer is knowable, and
-scored against the continuous sampling. The record covers every call made with the tokenized
+Every 15 minutes Tenor makes a call on the same 36 companies, at $2,000 and $10,000, writes it
+down before the answer is knowable, and scores it against the continuous sampling. The record covers every call made with the tokenized
 stock priced from its quote, since 23 September; **720 so far**, growing by about 290 an hour.
 
 | If you acted | Checks | Typical miss on $2,000 | Still within $1.00 |

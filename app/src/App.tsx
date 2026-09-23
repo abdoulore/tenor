@@ -577,7 +577,7 @@ export default function App() {
       ) : (
         tab !== "receipts" && tab !== "monitor" && (
           <button type="button" className="recordcta" onClick={() => setTab("receipts")}>
-            Or see every call this tool has made, and whether it held up
+            Or see how Tenor's calls have held up
             <span className="arrow">-&gt;</span>
           </button>
         )
