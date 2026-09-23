@@ -29,6 +29,7 @@ import {
 import { Monitor } from "./Monitor.tsx";
 import { Receipts } from "./Receipts.tsx";
 import { SplitCard } from "./SplitCard.tsx";
+import { ShareFacts } from "./ShareFacts.tsx";
 import { planSplit, type SplitPlan } from "../../engine/split.ts";
 import { SessionChart } from "./SessionChart.tsx";
 import { BreakEven } from "./BreakEven.tsx";
@@ -560,6 +561,13 @@ export default function App() {
                 />
               ))}
               {split && <SplitCard plan={split} />}
+              <ShareFacts
+                ticker={intent.ticker}
+                tokenMid={quote.routes.find((r) => r.route === "rtoken")?.execution?.mid ?? null}
+                horizonDays={intent.horizonDays}
+                notional={intent.notionalUsd}
+                session={session}
+              />
               {(["rtoken", "perp"] as const).map((route) => {
                 const b = outlook ? betterSession(outlook[route], session) : null;
                 return b ? (

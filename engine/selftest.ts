@@ -16,6 +16,7 @@ import { betterSession, priceIntent } from "./engine.ts";
 import { predictionFile, toRecord } from "./predictions.ts";
 import { analysePosition, daysRemaining, type Position } from "./monitor.ts";
 import { planSplit } from "./split.ts";
+import { dividendYieldPct, premiumBp, projectNext, shareOutlook, withinHorizon } from "./equity.ts";
 import { DEFAULT_CONSTRAINTS, type Book, type Intent, type SessionOutlook } from "./types.ts";
 
 let failures = 0;
@@ -214,7 +215,11 @@ group("eligibility");
   check("voting allows Stock+", checkEligibility("stockplus", "long", vote, "regular").eligible === true);
 
   const div = { ...c, wantsDividends: true };
-  check("dividends rule out perp", checkEligibility("perp", "long", div, "regular").eligible === false);
+  // Bitget's dividend treatment of the perpetual is not established, so it must be flagged as
+  // unknown rather than used to rule the route out.
+  check("perpetual dividend treatment is unconfirmed, not assumed",
+    checkEligibility("perp", "long", div, "regular").eligible === true
+      && checkEligibility("perp", "long", div, "regular").unverified.length > 0);
   check("unconfirmed dividend treatment is flagged, not guessed",
     checkEligibility("rtoken", "long", div, "regular").unverified.length > 0);
 
@@ -695,6 +700,70 @@ group("splitting a large order across the two wrappers");
   const forced = planSplit(quoteFor(tiny, { notionalUsd: 2_000 }), tiny);
   check("a split can fill what neither book can alone", forced.applicable && forced.bestSingle === null && forced.worthIt,
     JSON.stringify({ a: forced.applicable, s: forced.bestSingle, w: forced.worthIt }));
+}
+
+// ---------------------------------------------------------------- the underlying share
+
+group("the underlying share: premium, dividends, earnings");
+{
+  const now = Date.parse("2026-09-23T15:00:00Z");
+
+  // KO's real ex-dividend history, as Bitget's market data service returns it.
+  const ko = ["2025-06-12", "2025-09-14", "2025-11-30", "2026-03-12", "2026-06-14", "2026-09-14"];
+  const nextDiv = projectNext(ko, now)!;
+  check("a quarterly dividend projects about three months after the last", nextDiv !== null
+    && Date.parse(nextDiv.date) > Date.parse("2026-11-20") && Date.parse(nextDiv.date) < Date.parse("2027-01-10"), nextDiv?.date);
+  check("the projection says how many past dates it used", nextDiv.basedOn >= 3);
+  check("the projection is always in the future", Date.parse(nextDiv.date) > now);
+
+  // NVDA's report dates, duplicates included, the way the service returns them.
+  const nvda = ["2025-11-18", "2026-02-24", "2026-02-24", "2026-05-19", "2026-08-25", "2026-08-25"];
+  const nextEarn = projectNext(nvda, now)!;
+  check("duplicate dates do not distort the rhythm", nextEarn !== null && nextEarn.intervalDays > 80 && nextEarn.intervalDays < 110,
+    JSON.stringify(nextEarn));
+
+  // KO's calendar lists two dates a day apart for one report. They are one event.
+  const koEarn = projectNext(["2025-10-28", "2026-01-27", "2026-04-28", "2026-07-27", "2026-07-28"], now);
+  check("dates days apart count as one event", koEarn !== null && koEarn.intervalDays > 60, JSON.stringify(koEarn));
+
+  // KO's real feed contains an ex-date in 2152. It must not break the projection or its amount.
+  const withJunk = shareOutlook(
+    { symbol: "KO", price: { last: 88, prevClose: 88 }, source: "test", earnings: [],
+      dividends: [{ exDate: "2152-07-11", amount: 0.36 }, ...ko.map((d) => ({ exDate: d, amount: 0.53 }))] },
+    null, now, 90,
+  );
+  check("an impossible future date is ignored", withJunk.nextDividend !== null && !withJunk.nextDividend.date.startsWith("2152"),
+    JSON.stringify(withJunk.nextDividend));
+  check("and its amount is not used", withJunk.nextDividend?.amount === 0.53, `${withJunk.nextDividend?.amount}`);
+
+  // A dividend already on the calendar a few weeks out is announced, not projected.
+  const announced = shareOutlook(
+    { symbol: "X", price: { last: 50, prevClose: 50 }, source: "test", earnings: [],
+      dividends: [{ exDate: "2026-10-20", amount: 0.4 }, ...ko.map((d) => ({ exDate: d, amount: 0.38 }))] },
+    null, now, 60,
+  );
+  check("an upcoming date in the data is reported as announced", announced.nextDividend?.announced === true
+    && announced.nextDividend.date === "2026-10-20" && announced.nextDividend.amount === 0.4, JSON.stringify(announced.nextDividend));
+
+  // A guess dressed as a date is worse than no date.
+  check("too little history is not projected", projectNext(["2026-06-14", "2026-09-14"], now) === null);
+  check("an irregular series is not projected", projectNext(["2026-01-01", "2026-01-30", "2026-06-20", "2026-09-10"], now) === null);
+
+  check("a date inside the holding period is flagged", withinHorizon({ date: "2026-10-15", basedOn: 4, intervalDays: 91 }, now, 30));
+  check("a date past the holding period is not", !withinHorizon({ date: "2026-12-15", basedOn: 4, intervalDays: 91 }, now, 30));
+
+  check("a token above the share price shows a positive premium", near(premiumBp(100.3, 100)!, 30, 0.2));
+  check("a token below shows a discount", premiumBp(99.8, 100)! < 0);
+  check("a missing price gives no premium rather than zero", premiumBp(null, 100) === null && premiumBp(100, 0) === null);
+  check("dividend yield is the payment over the price", near(dividendYieldPct(0.53, 73)!, 0.726, 0.001));
+
+  const out = shareOutlook(
+    { symbol: "KO", price: { last: 73, prevClose: 72.8 }, dividends: ko.map((d) => ({ exDate: d, amount: 0.53 })), earnings: [], source: "test" },
+    73.1, now, 90,
+  );
+  check("the outlook carries the premium", out.premiumBp !== null && out.premiumBp > 0);
+  check("a 90 day hold catches the next quarterly dividend", out.nextDividend?.inHorizon === true, JSON.stringify(out.nextDividend));
+  check("no earnings history means no earnings claim", out.nextEarnings === null);
 }
 
 // ---------------------------------------------------------------- prediction log

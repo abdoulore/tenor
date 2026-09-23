@@ -75,9 +75,16 @@ export const CAPABILITIES: Record<RouteId, RouteCapability> = {
   perp: {
     canShort: true,
     maxLeverage: 100,
-    paysDividends: false,
+    /*
+     * Unconfirmed, not false. Some venues adjust perpetuals for dividends and some do not, and
+     * we have not established what Bitget does. This used to be `false`, which ruled the
+     * perpetual out for anyone wanting dividends on the strength of an assumption.
+     */
+    paysDividends: null,
+    // Structural: a futures contract is not share ownership, so it carries no vote.
     carriesVoting: false,
-    usableAsCollateral: false,
+    // Unconfirmed for the same reason as dividends: it is a Bitget policy we have not checked.
+    usableAsCollateral: null,
     tradableSessions: "all",
   },
   stockplus: {

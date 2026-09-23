@@ -490,3 +490,14 @@ footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--line);
 .split-line { fill: none; stroke: var(--text); stroke-width: 2.5; stroke-linejoin: round; opacity: 0.85; }
 .split-dot { fill: var(--good); }
 .split-none { font-size: 13px; color: var(--dim); margin: 10px 0; padding: 10px 14px; background: var(--panel); border-radius: 8px; }
+
+/* ---------------------------------------------------------------- the share itself */
+
+.share {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px 18px; margin: 14px 0 10px;
+}
+.share h3 { margin: 0 0 8px; font-size: 16px; }
+.share p { margin: 6px 0; font-size: 14px; line-height: 1.55; color: var(--muted); }
+.share strong { color: var(--text); }
+.share .dim { color: var(--dim); }

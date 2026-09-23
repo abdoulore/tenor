@@ -79,6 +79,15 @@ Four gates, answered in order. The first two decide, the last two adjust.
    when one exists and the saving is worth acting on.
 4. **For how long?** Only when execution is close enough that funding can decide it.
 
+For large orders it also searches every split between the two wrappers, walking both live books
+for each part's share, and recommends a split only when it saves at least a basis point and a
+dollar. On live books, $100,000 of KO costs $980 through the perpetual alone and $854 split 78%
+perpetual and 22% tokenized; at $2,000 no split helps, and the page says so.
+
+Alongside the price it shows the share itself: its real price against the token's, and the next
+dividend and earnings report, from Bitget's market data service. Future dates are projected from
+each company's own past dates and labelled as projected.
+
 The cost engine is **deterministic**. No model touches any number a user sees. An LLM reads
 your sentence into the form fields and nothing else, which is stated on the page.
 
@@ -89,16 +98,18 @@ All public Bitget endpoints, no account required to run this:
 - `v3/market/orderbook` for both legs, 150 levels, every five minutes
 - `v3/market/history-fund-rate` for funding
 - `v3/market/instruments` and `tickers` for the universe and volume screen
+- Bitget's market data service (`bitget-mcp-server`) for share prices, dividends and earnings
+  dates, one of the Agent Hub Skills
 - Fees derived from five real fills, recorded with their order numbers
 
 ## Layout
 
 | Directory | What it is |
 |---|---|
-| `engine/` | The cost engine. Deterministic, dependency free, 177 offline tests. |
+| `engine/` | The cost engine. Deterministic, dependency free, 210 offline tests. |
 | `sampler/` | Continuous order book sampler. Zero dependencies, plain `.mjs`. |
 | `app/` | Vite + React front end. Static, calls Bitget directly from the browser. |
-| `api/` | One serverless function, so the model key never reaches the browser. |
+| `api/` | Two serverless functions: intent parsing, so the model key never reaches the browser, and share data from Bitget's market data service. |
 | `ops/` | Backup, outlook builder, receipts scorer, session analysis. |
 | `canary/` | The kill test that decided whether to build this at all. |
 
@@ -107,7 +118,7 @@ All public Bitget endpoints, no account required to run this:
 Node 20 or later. The engine and sampler have **no dependencies** and no build step.
 
 ```bash
-node engine/selftest.ts          # 177 tests, offline, no network
+node engine/selftest.ts          # 210 tests, offline, no network
 node engine/demo.ts              # price five tickers against live books
 node sampler/sample.mjs --once   # one sampling cycle
 node ops/receipts.mjs            # score the prediction log
@@ -138,8 +149,9 @@ trading costs and which wrapper is cheapest. Those are different jobs.
 
 The sampled history is days, not years. The app says so on every screen that uses it.
 
-Dividend and collateral treatment for tokenized stocks on Bitget are **unconfirmed**, so the
-app surfaces that as an unknown rather than guessing.
+Whether Bitget passes dividends on through the tokenized stock or the perpetual, and whether
+either can be used as collateral, is **unconfirmed**, so the app surfaces those as unknowns
+rather than guessing.
 
 ---
 
