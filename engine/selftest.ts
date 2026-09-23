@@ -275,8 +275,12 @@ group("engine: empty book is a headline state");
   const r = q.routes.find((x) => x.route === "rtoken")!;
   check("empty book reports no_book", r.status === "no_book", r.status);
   check("empty book is not priced", r.totalBp === null);
-  check("empty book says untradeable, not expensive",
-    /nobody is quoting a price/i.test(r.reason ?? ""), r.reason ?? "");
+  // An empty book means Bitget published no depth, not that the market is closed. The
+  // reason must say it cannot be priced and must not claim nobody trades it.
+  check("empty book says it cannot be priced",
+    /cannot price it/i.test(r.reason ?? ""), r.reason ?? "");
+  check("empty book does not claim the market is dead",
+    !/nobody (is quoting|trades)|could not (buy|sell)|no market/i.test(r.reason ?? ""), r.reason ?? "");
   check("empty book reports zero absorbable", r.absorbableUsd === 0);
   check("the other route still wins", q.recommended === "perp");
   check("Stock+ closed overnight is ineligible",
@@ -583,7 +587,9 @@ group("monitor: should you move a position you already hold");
   });
   check("no market means stuck, not stay", stuck.verdict === "stuck", stuck.verdict);
   check("stuck is flagged on the analysis", stuck.cannotExit === true);
-  check("stuck says you could not sell", /could not sell/.test(stuck.message));
+  check("no published depth says an exit cannot be priced",
+    /cannot price an exit/.test(stuck.message), stuck.message);
+  check("and does not claim you cannot sell", !/could not sell|cannot get out/.test(stuck.message));
   check("stuck offers no switch arithmetic", stuck.netSavingBp === null);
 
   // Nowhere to move to is a different answer from "moving is a bad idea".

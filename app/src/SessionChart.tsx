@@ -215,7 +215,7 @@ export function SessionChart({
                   <g key={i}>
                     <line x1={x(i)} x2={x(i)} y1={PAD.top + innerH - 6} y2={PAD.top + innerH + 6} className="gapmark" />
                     <text x={x(i)} y={PAD.top + innerH - 14} className="gaptext" textAnchor="middle">
-                      {p.empty ? "cannot trade" : "no data"}
+                      {p.empty ? "no depth" : "no data"}
                     </text>
                   </g>
                 ) : (

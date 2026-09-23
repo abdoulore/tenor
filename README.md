@@ -23,9 +23,12 @@ So we measured it.
 Continuous order book sampling on both legs of every tradeable ticker, every five minutes,
 since 15 September. **146 tickers, 198,072 snapshots, 2,080 cycles** so far.
 
-**Half of these markets do not exist.** Of 146 tokenized stocks watched, **77 have never
-quoted a price** in any session. Not a wide spread, no market at all. That includes Netflix,
-McDonald's, Lilly, Exxon, GE, Uber and Boeing. Bitget lists them. Nobody trades them.
+**Bitget publishes depth for fewer than half of these.** Of 146 tokenized stocks watched,
+**77 returned no order book depth on any check** in eight days of sampling every five minutes.
+They are live markets: all 77 show a best bid and ask on Bitget's ticker, 58 traded on
+Bitget in the 24 hours we checked, and every one we spot-checked moved with the share price.
+But with no published depth, nobody can know what a trade of any size will cost before
+placing it. That includes Netflix, McDonald's, Exxon and SOXL.
 
 **Size matters more than the fee schedule.** Coca-Cola's tokenized book costs 14bp to round
 trip at $500 and 118bp at $50,000, more than eight times as much. A top-of-book spread would
@@ -37,10 +40,10 @@ something beats US hours it saves about a basis point, while trading at the wron
 US hours wins costs a median of 13bp and up to 61bp. ABNB is $1.95 in US hours and $13.09
 overnight, on $2,000. The asymmetry is the finding, not the exceptions.
 
-**Markets are alive all day or not at all.** No tokenized stock that trades in US hours loses
-its market overnight; the hour changes the cost, not whether you can trade. The single
-exception in eight days was MSFT, whose tokenized book was empty for two hours on the morning
-of 21 September and then came back.
+**Depth is published all day or not at all.** No token with published depth in US hours loses
+it overnight; the hour changes the cost, not whether it can be priced. The single exception
+in eight days was MSFT, whose depth disappeared from Bitget's feed for two hours on the
+morning of 21 September and then came back.
 
 **Fees are measured, not assumed.** The spot rate comes from a real fill on a real account
 (3.95bp, against the 10bp published rate), the perpetual rate from four NVDA fills that agree
@@ -68,7 +71,8 @@ funding projections are **not scored**, because none has finished running.
 
 Four gates, answered in order. The first two decide, the last two adjust.
 
-1. **Can you trade it at all?** An empty book means untradeable, not expensive.
+1. **Can it be priced at all?** Bitget publishes no depth for about half its tokenized
+   stocks. Where it does not, the page says so rather than guessing or calling the market dead.
 2. **At your size?** The book is walked for the requested amount. A route that cannot absorb
    your order is not an expensive option, it is not an option.
 3. **At this hour?** Session medians from the sampled history, with a cheaper session named

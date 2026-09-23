@@ -22,7 +22,7 @@ const VERDICT: Record<string, { title: string; tone: string }> = {
   switch: { title: "Worth moving", tone: "act" },
   stay: { title: "Stay put", tone: "ok" },
   not_worth_it: { title: "Not worth moving", tone: "ok" },
-  stuck: { title: "You cannot get out", tone: "dead" },
+  stuck: { title: "Cannot be priced", tone: "muted" },
   unknown: { title: "Cannot tell", tone: "muted" },
 };
 
@@ -162,7 +162,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
             onChange={(t) => setForm((f) => ({ ...f, ticker: t }))}
             groups={[
               { label: `Can be traded (${groups.tradeable.length})`, items: groups.tradeable },
-              { label: `Listed, but nobody trades them (${groups.dead.length})`, items: groups.dead, suffix: "no market", tone: "dead" },
+              { label: `Bitget publishes no depth (${groups.dead.length})`, items: groups.dead, suffix: "cannot price", tone: "warn" },
               { label: `Too small for us to have watched (${groups.untracked.length})`, items: groups.untracked, suffix: "not tracked", tone: "warn" },
             ]}
           />
@@ -228,7 +228,7 @@ export function Monitor({ groups }: { groups: TickerGroups }) {
           <span>
             {positions.length} position{positions.length > 1 ? "s" : ""}
             {toMove > 0 && <strong className="act"> · {toMove} worth moving</strong>}
-            {stuck > 0 && <strong className="dead"> · {stuck} you cannot exit</strong>}
+            {stuck > 0 && <strong className="dead"> · {stuck} cannot be priced</strong>}
           </span>
           <button className="recheck" onClick={() => void check(positions)} disabled={checking}>
             {checking ? "Checking" : "Check again"}

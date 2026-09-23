@@ -144,37 +144,38 @@ export function Receipts({ notional = 2_000 }: { notional?: number }) {
         </>
       )}
 
-      <h3>Calls about what could be traded at all</h3>
+      <h3>Calls about what could be priced at all</h3>
       <p className="sub">
-        We said nobody was quoting a price {fmt(r.availability.saidDead)} times, and an hour
-        later that was still true {r.availability.deadStillDeadPct}% of the time. We said a
-        market was live {fmt(r.availability.saidLive)} times, still true{" "}
-        {r.availability.liveStillLivePct}%.
+        We found no published depth {fmt(r.availability.saidDead)} times, and an hour later
+        that was still the case {r.availability.deadStillDeadPct}% of the time. We found depth{" "}
+        {fmt(r.availability.saidLive)} times, still there {r.availability.liveStillLivePct}% of
+        the time an hour later.
       </p>
       {!structural && (
         <p className="caveat">
           {/*
             * Something did change state, so the score means more than it did when every
-            * market was simply dead or alive all week. Name it, with times, rather than let a
+            * name simply had depth or did not all week. Name it, with times, rather than let a
             * 99.9% absorb it.
             */}
-          Almost every market was either dead or alive for the whole period. The exception
+          Bitget either published depth for a token for the whole period or never did. The
+          exception
           {(r.availability as { outages?: { ticker: string; from: string; to: string }[] }).outages?.length === 1 ? " was" : "s were"}{" "}
           {((r.availability as { outages?: { ticker: string; from: string; to: string }[] }).outages ?? [])
-            .map((o) => `${o.ticker}, whose tokenized book was empty from ${o.from.slice(11, 16)} to ${o.to.slice(11, 16)} UTC on ${o.from.slice(0, 10)}`)
+            .map((o) => `${o.ticker}, whose depth disappeared from Bitget's feed from ${o.from.slice(11, 16)} to ${o.to.slice(11, 16)} UTC on ${o.from.slice(0, 10)}`)
             .join("; ")}
-          , then came back. Even one of the most liquid names on the list can go dark for a
-          couple of hours with no warning.
+          , then came back. None of this means those markets were closed: names without
+          published depth still quote and trade, and their depth is simply not made public.
         </p>
       )}
       {structural && (
         <p className="caveat">
           Read that carefully rather than as a score. Of the {r.tickers.length} companies
           tracked, {deadNames.length === 1 ? `only ${listed} was` : `${listed} were`} ever
-          found with no market, and not one company changed state in {spanDays} days of checks
-          every five minutes. So this is not evidence that we predict outages well. It is evidence that a
-          dead tokenized market stays dead, which is the more useful finding and a worse thing
-          for anyone holding one.
+          found with no published depth, and not one changed state in {spanDays} days of checks
+          every five minutes. So this is not evidence that we predict anything. It is evidence
+          that Bitget either publishes depth for a token or does not, consistently. Those
+          markets still quote and trade; their depth is simply not published.
         </p>
       )}
 

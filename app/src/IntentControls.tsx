@@ -60,7 +60,7 @@ const LEVERAGE = [1, 2, 3, 5, 10, 20];
 export interface TickerGroups {
   /** Sampled, and the tokenized side actually quotes a price. */
   tradeable: string[];
-  /** Sampled continuously and never quoted once. Listed, but there is no market. */
+  /** Sampled continuously; Bitget publishes no depth for them, though they quote and trade. */
   dead: string[];
   /** Has both legs on Bitget but falls below the volume floor, so we have no history. */
   untracked: string[];
@@ -88,7 +88,7 @@ export function IntentControls({
 
   const comboGroups: ComboGroup[] = [
     { label: `Can be traded (${groups.tradeable.length})`, items: groups.tradeable },
-    { label: `Listed, but nobody trades them (${groups.dead.length})`, items: groups.dead, suffix: "no market", tone: "dead" },
+    { label: `Bitget publishes no depth (${groups.dead.length})`, items: groups.dead, suffix: "cannot price", tone: "warn" },
     { label: `Too small for us to have watched (${groups.untracked.length})`, items: groups.untracked, suffix: "not tracked", tone: "warn" },
   ];
   const c = draft.constraints;

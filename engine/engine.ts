@@ -3,7 +3,7 @@
  *
  * Four gates, in order. The first two decide, the last two adjust.
  *
- *   1. Can you trade it at all?   No book means untradeable, not expensive.
+ *   1. Can it be priced at all?   Bitget publishes no depth for about half its tokenized stocks.
  *   2. At your size?              Walk the book for the requested notional.
  *   3. At this hour?              Session adjusted, naming a better session when there is one.
  *   4. For how long?              Only when execution is inside the fee gap.
@@ -139,7 +139,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `Every time we checked at this hour, nobody was quoting a price for ${theRoute(route)}.`,
+      reason: `Every time we checked at this hour, Bitget published no depth for ${theRoute(route)}, so we cannot price it.`,
       absorbableUsd: 0,
     };
   }
@@ -174,7 +174,7 @@ function priceRoute(
     return {
       ...base,
       status: "no_book",
-      reason: `Nobody is quoting a price for ${theRoute(route)} right now, so you could not buy or sell it at any amount.`,
+      reason: `Bitget does not publish how much is on offer for ${theRoute(route)}, so we cannot price it. It does trade: its current price is in the Bitget app.`,
       absorbableUsd: 0,
     };
   }

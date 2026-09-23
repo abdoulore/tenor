@@ -84,12 +84,13 @@ const pctOf = (bp: number | null | undefined) =>
   bp === null || bp === undefined ? "n/a" : `${(bp / 100).toFixed(3)}%`;
 
 /**
- * Split everything Bitget lists into what can be traded, what is listed but dead, and what
- * we have never watched.
+ * Split everything Bitget lists into what can be priced, what trades but has no published
+ * depth, and what we have never watched.
  *
- * "Dead" means sampled every five minutes since Tuesday with the tokenized side empty on
- * every single check. Bitget lists a tokenized Netflix, McDonald's and Exxon; none of them
- * has had a quote once.
+ * "No depth" means sampled every five minutes and Bitget's order book endpoint returned nothing
+ * for the tokenized side on every check. These markets still quote and trade: their best bid
+ * and ask are live on Bitget's ticker. Their depth is simply not published, so they cannot be
+ * priced, and the page says exactly that rather than calling them dead.
  */
 function groupTickers(live: string[]): TickerGroups {
   const entries = (outlookData as OutlookFile).tickers as Record<
@@ -120,7 +121,7 @@ function Range({ r, notional }: { r: { low: number; mid: number; high: number };
 }
 
 const STATUS_COPY: Record<string, { title: string; tone: string }> = {
-  no_book: { title: "Nothing on offer", tone: "dead" },
+  no_book: { title: "Depth not published", tone: "warn" },
   cannot_fill: { title: "Not enough on offer", tone: "warn" },
   ineligible: { title: "Will not do what you asked", tone: "dead" },
   modeled: { title: "Cannot be priced", tone: "muted" },
@@ -639,10 +640,12 @@ function Verdict({ quote, notional }: { quote: Quote; notional: number }) {
   if (!second) {
     return (
       <div className="verdict only">
-        <strong>Only one option works: {theRoute(best.route)}.</strong>
+        <strong>
+          {dead ? `Only ${theRoute(best.route)} can be priced.` : `Only one option works: ${theRoute(best.route)}.`}
+        </strong>
         <span>
           {dead
-            ? `Nobody is quoting a price for ${theRoute(dead.route)} at all, so there is nothing to compare it against.`
+            ? `Bitget does not publish how much is on offer for ${theRoute(dead.route)}, so we cannot price it or compare the two. It does trade: its current price is in the Bitget app.`
             : "Nothing else can do what you asked."}
         </span>
       </div>

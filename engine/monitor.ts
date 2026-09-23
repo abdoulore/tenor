@@ -69,7 +69,7 @@ export interface SwitchAnalysis {
   breakevenDays: number;
 
   alternative: RouteId | null;
-  /** True when the held route currently has no market, so exiting is not possible. */
+  /** True when Bitget publishes no depth for the held route, so an exit cannot be priced. */
   cannotExit: boolean;
 }
 
@@ -138,8 +138,8 @@ export function analysePosition(p: Position, inputs: MonitorInputs): SwitchAnaly
       verdict: "stuck",
       cannotExit: true,
       message:
-        `Nobody is quoting a price for your ${ROUTE_NOUN[p.route]} right now, ` +
-        `so you could not sell it even if you wanted to. Nothing to do until a market returns.`,
+        `Bitget does not publish how much is on offer for your ${ROUTE_NOUN[p.route]}, so we cannot price an exit ` +
+        `or a switch. It does trade: check its current price in the Bitget app.`,
     };
   }
 
