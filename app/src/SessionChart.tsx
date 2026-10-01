@@ -18,6 +18,14 @@ const LABELS: Record<string, string> = {
   overnight: "Overnight",
 };
 
+/** The same sessions as they read in the middle of a sentence. */
+const PHRASE: Record<string, string> = {
+  premarket: "pre-market",
+  regular: "in US hours",
+  afterhours: "after-hours",
+  overnight: "overnight",
+};
+
 const W = 760;
 const H = 320;
 const PAD = { top: 28, right: 24, bottom: 56, left: 78 };
@@ -123,7 +131,7 @@ export function SessionChart({
       const dear = worst.byBest[worst.byBest.length - 1];
       parts.push(
         `The hour matters here: the ${worst.label} costs ${money(dear.bp!)} ` +
-        `${LABELS[dear.session].toLowerCase()} against ${money(best.bp!)} ${LABELS[best.session].toLowerCase()}, ` +
+        `${PHRASE[dear.session]} against ${money(best.bp!)} ${PHRASE[best.session]}, ` +
         `${worst.ratio.toFixed(1)} times as much.`,
       );
     } else {
