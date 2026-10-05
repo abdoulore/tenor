@@ -11,7 +11,10 @@
  * Reads COLLECTOR_URL and FETCH_TOKEN from the environment.
  */
 
-import { mkdir, writeFile, stat } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { mkdir, rename, stat } from "node:fs/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { join } from "node:path";
 
 const URL_BASE = process.env.COLLECTOR_URL;
@@ -44,11 +47,15 @@ for (const [kind, files] of Object.entries(listing)) {
       signal: AbortSignal.timeout(300_000),
     });
     if (!res.ok) { log(`failed ${kind}/${f.name}: HTTP ${res.status}`); continue; }
-    const buf = Buffer.from(await res.arrayBuffer());
-    await writeFile(dest, buf);
+    // Streamed to a temporary file and renamed, so a large file never sits whole in memory and
+    // an interrupted download never leaves a half written file under the real name.
+    const tmp = `${dest}.part`;
+    await pipeline(Readable.fromWeb(res.body), createWriteStream(tmp));
+    await rename(tmp, dest);
+    const size = (await stat(dest)).size;
     fetched++;
-    bytes += buf.length;
-    log(`${kind}/${f.name} ${(buf.length / 1e6).toFixed(2)}MB`);
+    bytes += size;
+    log(`${kind}/${f.name} ${(size / 1e6).toFixed(2)}MB`);
   }
 }
 
