@@ -15,7 +15,7 @@
 import { join } from "node:path";
 import { sessionLabel } from "./book.ts";
 import { priceIntent } from "./engine.ts";
-import { fetchBook, fetchFunding, fetchQuote, resolvePair, sessionOutlook } from "./live.ts";
+import { fetchBook, fetchFunding, fetchQuote, resolvePair, sessionOutlooks } from "./live.ts";
 import { logPrediction } from "./predictions.ts";
 import { DEFAULT_CONSTRAINTS, type Intent, type Session } from "./types.ts";
 
@@ -57,6 +57,8 @@ async function pass(): Promise<{ written: number; failed: number }> {
   const session = sessionLabel(new Date()) as Session;
   let written = 0;
   let failed = 0;
+  // One pass over recent history for every ticker, rather than the whole history per ticker.
+  const outlooks = await sessionOutlooks(TICKERS, SIZES[0], DATA_DIR);
 
   for (const ticker of TICKERS) {
     try {
@@ -65,11 +67,11 @@ async function pass(): Promise<{ written: number; failed: number }> {
       if (!pair) { failed++; continue; }
 
       // The tokenized stock is priced from its quote, which is what its orders fill at.
-      const [spotBook, perpBook, funding, outlook] = await Promise.all([
+      const outlook = outlooks.get(ticker) ?? { rtoken: [], perp: [], stockplus: [] };
+      const [spotBook, perpBook, funding] = await Promise.all([
         fetchQuote(pair.spotSymbol).catch(() => ({ asks: [], bids: [], ts: null, source: "quote" as const })),
         fetchBook("USDT-FUTURES", pair.perpSymbol).catch(() => ({ asks: [], bids: [], ts: null })),
         fetchFunding(pair.perpSymbol).catch(() => []),
-        sessionOutlook(ticker, SIZES[0], DATA_DIR),
       ]);
 
       for (const notionalUsd of SIZES) {

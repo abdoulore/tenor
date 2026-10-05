@@ -6,7 +6,9 @@
  * rather than an assumption, and it is the same data the session chart draws.
  */
 
-import { readFile, readdir } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { quoteBook, toBook } from "./book.ts";
 // @ts-expect-error plain .mjs module, types declared in ../sampler/universe.d.mts
@@ -143,41 +145,58 @@ function median(xs: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+type Buckets = Record<string, Record<string, { rt: number[]; empty: number; n: number }>>;
+
+/** How much history the logger's outlook reads. A week covers every session several times. */
+export const OUTLOOK_DAYS = 7;
+
 /**
- * Build the per route, per session outlook for one ticker from the sampler's files.
+ * Build the per route, per session outlook for many tickers in one pass over the sampler's files.
  *
- * `size` must be one of the sizes the sampler walked, currently 2000 or 10000. Asking for a
- * size it never measured returns empty rather than interpolating a number nobody observed.
+ * Only the last `days` of files are read, line by line, so memory stays flat however long the
+ * collector has run. Reading the whole history once per ticker, as this used to, grew with every
+ * day of data.
+ *
+ * `size` must be one of the sizes the sampler walked. Asking for a size it never measured
+ * returns empty rather than interpolating a number nobody observed.
  */
-export async function sessionOutlook(
-  ticker: string,
+export async function sessionOutlooks(
+  tickers: string[],
   size: number,
   dataDir: string,
-): Promise<Record<RouteId, SessionOutlook[]>> {
-  const acc: Record<string, Record<string, { rt: number[]; empty: number; n: number }>> = {
-    rtoken: {},
-    perp: {},
-  };
-  for (const s of SESSIONS) {
-    acc.rtoken[s] = { rt: [], empty: 0, n: 0 };
-    acc.perp[s] = { rt: [], empty: 0, n: 0 };
+  days = OUTLOOK_DAYS,
+): Promise<Map<string, Record<RouteId, SessionOutlook[]>>> {
+  const wanted = new Set(tickers.map((t) => t.toUpperCase()));
+  const acc = new Map<string, Buckets>();
+  for (const t of wanted) {
+    const b: Buckets = { rtoken: {}, perp: {} };
+    for (const s of SESSIONS) {
+      b.rtoken[s] = { rt: [], empty: 0, n: 0 };
+      b.perp[s] = { rt: [], empty: 0, n: 0 };
+    }
+    acc.set(t, b);
   }
 
   let files: string[] = [];
   try {
     files = (await readdir(dataDir)).filter((f) => f.startsWith("samples-") && f.endsWith(".ndjson")).sort();
   } catch {
-    return { rtoken: [], perp: [], stockplus: [] };
+    files = [];
   }
+  const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  files = files.filter((f) => f.slice(8, 18) >= since);
 
-  const want = ticker.toUpperCase();
+  const key = String(size);
   for (const f of files) {
-    const text = await readFile(join(dataDir, f), "utf8");
-    for (const line of text.split("\n")) {
-      if (!line.trim() || !line.includes(want)) continue;
+    const lines = createInterface({ input: createReadStream(join(dataDir, f), "utf8"), crlfDelay: Infinity });
+    for await (const line of lines) {
+      if (!line.trim()) continue;
+      const m = line.match(/"ticker":"([A-Z0-9.]+)"/);
+      if (!m || !wanted.has(m[1])) continue;
       let r: Record<string, any>;
       try { r = JSON.parse(line); } catch { continue; }
-      if (r.ticker !== want) continue;
+      const b = acc.get(r.ticker);
+      if (!b) continue;
       /*
        * The tokenized stock is measured from its quote, which is what its orders fill at. Records
        * from before the sampler recorded quotes only have the order book, which real trades showed
@@ -185,26 +204,34 @@ export async function sessionOutlook(
        */
       for (const [route, leg] of [["rtoken", r.spotQuote], ["perp", r.perp]] as const) {
         if (route === "rtoken" && !leg) continue;
-        const bucket = acc[route][r.session];
+        const bucket = b[route][r.session];
         if (!bucket) continue;
         bucket.n++;
         if (leg?.empty) bucket.empty++;
-        const rt = leg?.fills?.[String(size)]?.roundTripBp;
+        const rt = leg?.fills?.[key]?.roundTripBp;
         if (typeof rt === "number") bucket.rt.push(rt);
       }
     }
   }
 
-  const build = (route: "rtoken" | "perp"): SessionOutlook[] =>
-    SESSIONS.filter((s) => acc[route][s].n > 0).map((s) => {
-      const b = acc[route][s];
-      return {
-        session: s,
-        executionBp: median(b.rt),
-        emptyShare: b.n ? b.empty / b.n : null,
-        samples: b.n,
-      };
-    });
+  const out = new Map<string, Record<RouteId, SessionOutlook[]>>();
+  for (const [t, b] of acc) {
+    const build = (route: "rtoken" | "perp"): SessionOutlook[] =>
+      SESSIONS.filter((s) => b[route][s].n > 0).map((s) => {
+        const x = b[route][s];
+        return { session: s, executionBp: median(x.rt), emptyShare: x.n ? x.empty / x.n : null, samples: x.n };
+      });
+    out.set(t, { rtoken: build("rtoken"), perp: build("perp"), stockplus: [] });
+  }
+  return out;
+}
 
-  return { rtoken: build("rtoken"), perp: build("perp"), stockplus: [] };
+/** The outlook for one ticker. Prefer sessionOutlooks when pricing several. */
+export async function sessionOutlook(
+  ticker: string,
+  size: number,
+  dataDir: string,
+): Promise<Record<RouteId, SessionOutlook[]>> {
+  const m = await sessionOutlooks([ticker], size, dataDir);
+  return m.get(ticker.toUpperCase()) ?? { rtoken: [], perp: [], stockplus: [] };
 }
