@@ -94,8 +94,8 @@ Alongside the price it shows the share itself: its real price against the token'
 dividend and earnings report, from Bitget's market data service. Future dates are projected from
 each company's own past dates and labelled as projected.
 
-The cost engine is **deterministic**. No model works out any number a user sees. Claude
-Sonnet 5 does two things: reads a sentence into the form fields, and explains each result in
+The cost engine is **deterministic**. No model works out any number a user sees. Qwen
+3.8 Max, through Bitget's hackathon endpoint, does two things: reads a sentence into the form fields, and explains each result in
 two or three sentences and answers questions about it. For the explanation, the engine writes a
 fact sheet of every figure on the page, and the model may only use figures from it. The page
 then checks every number in the answer against the sheet. An answer with a figure the engine

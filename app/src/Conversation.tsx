@@ -244,7 +244,7 @@ export function Conversation({
       {children}
 
       <p className="note">
-        Written by Claude from Tenor's figures. Every number is checked against the engine before
+        Written by Qwen from Tenor's figures. Every number is checked against the engine before
         it is shown.
       </p>
     </section>

@@ -13,13 +13,81 @@
  * Same origin check and rate limit as the parser, because every call here costs money too.
  */
 
-const MODEL = "claude-sonnet-5";
 const MAX_FACTS = 5_000;
 const MAX_QUESTION = 300;
 const MAX_TURNS = 3;
 const WINDOW_MS = 60_000;
 const PER_ADDRESS = 20;
 const PER_INSTANCE = 200;
+/*
+ * The model behind this function. Qwen 3.8 Max through Bitget's hackathon endpoint, which speaks
+ * the OpenAI chat format, when QWEN_API_KEY is set; otherwise Claude through Anthropic's API.
+ * Either way the caller gets back one tool call: its name and its arguments.
+ */
+const QWEN_URL = "https://hackathon.bitgetops.com/v1/chat/completions";
+const QWEN_MODEL = "qwen3.8-max";
+const CLAUDE_MODEL = "claude-sonnet-5";
+
+type ToolSpec = { name: string; description: string; input_schema: Record<string, unknown> };
+type Msg = { role: "user" | "assistant"; content: string };
+class Upstream extends Error {
+  status: number;
+  detail: string;
+  constructor(status: number, detail: string) { super(`upstream ${status}`); this.status = status; this.detail = detail; }
+}
+
+const modelConfigured = () => Boolean(process.env.QWEN_API_KEY || process.env.ANTHROPIC_API_KEY);
+
+async function callModel(o: { system?: string; messages: Msg[]; tools: ToolSpec[]; force?: string; maxTokens: number }):
+  Promise<{ name: string; input: Record<string, unknown>; model: string; text?: string } | null> {
+  const qwen = process.env.QWEN_API_KEY;
+  if (qwen) {
+    const send = (toolChoice: unknown) => fetch(QWEN_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${qwen}` },
+      body: JSON.stringify({
+        model: QWEN_MODEL,
+        max_tokens: o.maxTokens,
+        messages: [...(o.system ? [{ role: "system", content: o.system }] : []), ...o.messages],
+        tools: o.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
+        tool_choice: toolChoice,
+      }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    let r = await send(o.force ? { type: "function", function: { name: o.force } } : "required");
+    // Some OpenAI-compatible servers accept only "auto"; the prompt still asks for a tool.
+    if (r.status === 400) r = await send("auto");
+    if (!r.ok) throw new Upstream(r.status, (await r.text().catch(() => "")).slice(0, 200));
+    const j = await r.json();
+    const msg = j?.choices?.[0]?.message;
+    const call = msg?.tool_calls?.[0]?.function;
+    if (call?.name) {
+      let input: Record<string, unknown> = {};
+      try { input = typeof call.arguments === "string" ? JSON.parse(call.arguments) : call.arguments ?? {}; } catch { return null; }
+      return { name: call.name, input, model: QWEN_MODEL };
+    }
+    return typeof msg?.content === "string" && msg.content.trim() ? { name: "", input: {}, model: QWEN_MODEL, text: msg.content.trim() } : null;
+  }
+
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": process.env.ANTHROPIC_API_KEY ?? "", "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: o.maxTokens,
+      ...(o.system ? { system: o.system } : {}),
+      tools: o.tools,
+      tool_choice: o.force ? { type: "tool", name: o.force } : { type: "any" },
+      messages: o.messages,
+    }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!r.ok) throw new Upstream(r.status, (await r.text().catch(() => "")).slice(0, 200));
+  const out = await r.json();
+  const use = out?.content?.find?.((c: { type: string }) => c.type === "tool_use");
+  return use ? { name: use.name, input: use.input ?? {}, model: CLAUDE_MODEL } : null;
+}
+
 const hits = new Map<string, number[]>();
 let instanceHits: number[] = [];
 
@@ -123,8 +191,7 @@ export default async function handler(
     res.status(429).json({ error: "too many requests" });
     return;
   }
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) {
+  if (!modelConfigured()) {
     res.status(503).json({ error: "unconfigured" });
     return;
   }
@@ -155,37 +222,27 @@ export default async function handler(
   messages.push({ role: "user", content: ask });
 
   try {
-    const upstream = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 400,
-        system: `${RULES}\n\nFact sheet:\n${facts}`,
-        tools: TOOLS,
-        tool_choice: { type: "any" },
-        messages,
-      }),
-      signal: AbortSignal.timeout(20_000),
-    });
-    if (!upstream.ok) {
-      const detail = await upstream.text().catch(() => "");
-      res.status(502).json({ error: "upstream", status: upstream.status, detail: detail.slice(0, 200) });
+    const out = await callModel({ system: `${RULES}
+
+Fact sheet:
+${facts}`, messages, tools: TOOLS, maxTokens: 400 });
+    if (out?.name === "answer" && typeof out.input.text === "string") {
+      res.status(200).json({ kind: "answer", text: out.input.text, model: out.model });
       return;
     }
-    const out = await upstream.json();
-    const use = out?.content?.find?.((c: { type: string }) => c.type === "tool_use");
-    if (use?.name === "answer" && typeof use.input?.text === "string") {
-      res.status(200).json({ kind: "answer", text: use.input.text, model: MODEL });
+    if (out?.name === "reprice") {
+      res.status(200).json({ kind: "reprice", changes: out.input, model: out.model });
       return;
     }
-    if (use?.name === "reprice" && use.input && typeof use.input === "object") {
-      res.status(200).json({ kind: "reprice", changes: use.input, model: MODEL });
+    // A plain reply instead of a tool call is still an answer; the page checks its figures anyway.
+    if (out?.text) {
+      res.status(200).json({ kind: "answer", text: out.text, model: out.model });
       return;
     }
     res.status(502).json({ error: "no structured output" });
   } catch (e) {
-    res.status(502).json({ error: "request failed", detail: String((e as Error)?.message ?? e).slice(0, 200) });
+    if (e instanceof Upstream) res.status(502).json({ error: "upstream", status: e.status, detail: e.detail });
+    else res.status(502).json({ error: "request failed", detail: String((e as Error)?.message ?? e).slice(0, 200) });
   }
 }
 
