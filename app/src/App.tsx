@@ -270,7 +270,11 @@ export default function App() {
   const [funding, setFunding] = useState<Settlement[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"routes" | "sessions" | "breakeven" | "receipts" | "monitor">("routes");
+  // A link can open a page directly: #track-record for the track record, #what-i-hold for the monitor.
+  const [tab, setTab] = useState<"routes" | "sessions" | "breakeven" | "receipts" | "monitor">(() =>
+    typeof location !== "undefined" && location.hash === "#track-record" ? "receipts"
+      : typeof location !== "undefined" && location.hash === "#what-i-hold" ? "monitor"
+      : "routes");
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   /** Nothing is priced until this is true. */
   const [asked, setAsked] = useState(false);
