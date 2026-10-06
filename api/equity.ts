@@ -59,12 +59,14 @@ async function mcpSession() {
   return async (entry_id: string, params: Record<string, unknown>) => {
     const out = await rpc({ jsonrpc: "2.0", id: id++, method: "tools/call", params: { name: "do_query", arguments: { entry_id, params } } });
     const text = out?.result?.content?.map((c: { text?: string }) => c.text ?? "").join("") ?? "";
-    try {
-      const parsed = JSON.parse(text);
-      return Array.isArray(parsed?.data?.results) ? parsed.data.results : [];
-    } catch {
-      return [];
+    let parsed: { success?: boolean; status_code?: number; data?: { results?: unknown } } | null = null;
+    try { parsed = JSON.parse(text); } catch { parsed = null; }
+    // An upstream outage comes back as success: false with the backend's status. It is not "this
+    // company has no data", so it fails the whole request rather than being reported as empty.
+    if (!parsed || parsed.success === false) {
+      throw new Error(`market data service ${parsed?.status_code ?? "gave no readable answer"}`);
     }
+    return Array.isArray(parsed?.data?.results) ? parsed.data.results : [];
   };
 }
 
@@ -111,6 +113,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     res.setHeader("cache-control", "public, s-maxage=600, stale-while-revalidate=300");
     res.status(200).json(body);
   } catch (e) {
+    res.setHeader("cache-control", "no-store");
     res.status(502).json({ error: "market data service unavailable", detail: String((e as Error)?.message ?? e).slice(0, 160) });
   }
 }
