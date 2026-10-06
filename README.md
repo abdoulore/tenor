@@ -100,7 +100,7 @@ two or three sentences and answers questions about it. For the explanation, the 
 fact sheet of every figure on the page, and the model may only use figures from it. The page
 then checks every number in the answer against the sheet. An answer with a figure the engine
 did not produce is sent back once with that figure named, and withheld if it fails again. In
-testing, asked what the two fees add up to, the model wrote a total the engine had never
+testing, asked what the two fees add up to, a model wrote a total the engine had never
 computed; the check caught it and the retry answered without it. A question that needs a new
 figure, such as "what if I held three months", comes back as a request to price again, and the
 engine prices it.
