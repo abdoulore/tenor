@@ -1,0 +1,18 @@
+# Only what the site build needs goes to Vercel: app/, engine/, api/, sampler/*.mjs and vercel.json.
+# The Vercel CLI does not read .gitignore, so secrets, collected data and local notes are excluded here.
+# Patterns start with / so they match only at the project root; app/src/data is needed by the build.
+/.env
+/.env.*
+/private/
+/sampler/data/
+/engine/predictions/
+/data/
+/.backup/
+/ops/
+/canary/
+/Dockerfile
+/app/node_modules/
+/app/dist/
+*.log
+*.pid
+*.part
