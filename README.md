@@ -21,8 +21,8 @@ So we measured it.
 
 ## What we found
 
-Every tokenized stock Bitget lists with a matching perpetual, **169 names**, sampled every five
-minutes since 15 September: **720,065 snapshots** of the order book, the quote, and the
+Every tokenized stock Bitget lists with a matching perpetual, **222 names**, sampled every five
+minutes since 15 September: **1,484,131 snapshots** of the order book, the quote, and the
 perpetual.
 
 **A tokenized stock fills at Bitget's quote, not its order book.** Bitget publishes two prices
@@ -58,16 +58,16 @@ derivable from the other. Order numbers are in [`engine/fees.ts`](engine/fees.ts
 
 Every 15 minutes Tenor makes a call on the same 36 companies, at $2,000 and $10,000, writes it
 down before the answer is knowable, and scores it against the continuous sampling. The record covers every call made with the tokenized
-stock priced from its quote, since 23 September: **86,616 so far**.
+stock priced from its quote, since 23 September: **197,208 so far**.
 
 | If you acted | Checks | Typical miss on $2,000 | Still within $1.00 |
 |---|---|---|---|
-| 5 minutes later | 110,812 | $0.15 | 85.7% |
-| 1 hour later | 108,620 | $0.26 | 77.4% |
-| 4 hours later | 105,921 | $0.35 | 71.9% |
+| 5 minutes later | 248,564 | $0.16 | 85.7% |
+| 1 hour later | 243,882 | $0.26 | 77.5% |
+| 4 hours later | 238,878 | $0.34 | 72.3% |
 
 Median error is about zero at every lag, so the quotes are not biased. Replayed on prices an
-hour later, 95.3% of recommendations still hold, and 93.5% after four hours. Funding forecasts
+hour later, 95.8% of recommendations still hold, and 94.0% after four hours. Funding forecasts
 run 30 days and are scored as they complete. The live figures are on the app's track record
 page.
 
