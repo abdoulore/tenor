@@ -130,6 +130,79 @@ function outagesFor(keys, index) {
   return out;
 }
 
+/*
+ * Funding forecasts, scored once their 30 days are over, against what Bitget actually charged.
+ *
+ * The funding forecast does not depend on how the tokenized stock was priced, so every completed
+ * call counts here, from 16 September. Whether the recommendation itself held once real funding
+ * was known does depend on that, so that part covers only calls made on the quote.
+ *
+ * Actual funding comes from funding-<TICKER>.ndjson, which the collector records beside the
+ * prediction log. The perpetual's round trip fee is 12bp on this account's measured rate.
+ */
+const PERP_FEE_BP = 12;
+const DAY = 86_400_000;
+
+async function scoreFunding(logged, quoteCalls, horizons, oldestMs) {
+  const now = Date.now();
+  const histories = new Map();
+  for (const f of (await readdir(PRED_DIR).catch(() => [])).filter((f) => /^funding-.+\.ndjson$/.test(f))) {
+    const rows = [];
+    for (const line of (await readFile(join(PRED_DIR, f), "utf8")).split("\n")) {
+      if (!line.trim()) continue;
+      try { const r = JSON.parse(line); if (Number.isFinite(r.ts) && Number.isFinite(r.rate)) rows.push(r); } catch { /* torn line */ }
+    }
+    histories.set(f.slice(8, -7), rows.sort((a, b) => a.ts - b.ts));
+  }
+  const quoteIds = new Set(quoteCalls.map((p) => p.id));
+  const done = logged.filter((p) => Date.parse(p.at) + p.horizonDays * DAY <= now && p.direction === "long");
+
+  const errors = [];
+  let inRange = 0, rangeChecks = 0, held = 0, heldChecks = 0;
+  for (const p of done) {
+    const perp = p.routes.find((r) => r.route === "perp");
+    const token = p.routes.find((r) => r.route === "rtoken");
+    if (!perp || typeof perp.totalBp !== "number" || typeof perp.executionBp !== "number") continue;
+    const h = histories.get(p.ticker);
+    const from = Date.parse(p.at), to = from + p.horizonDays * DAY;
+    // Only score a window the record fully covers.
+    if (!h?.length || h[0].ts > from || h[h.length - 1].ts < to - DAY) continue;
+    const actual = h.filter((x) => x.ts > from && x.ts <= to).reduce((s, x) => s + x.rate, 0) * 10_000;
+    const forecast = perp.totalBp - perp.executionBp - PERP_FEE_BP;
+    errors.push(actual - forecast);
+    if (p.route === "perp" && typeof p.predictedLowBp === "number" && typeof p.predictedHighBp === "number") {
+      rangeChecks++;
+      const lo = p.predictedLowBp - perp.executionBp - PERP_FEE_BP;
+      const hi = p.predictedHighBp - perp.executionBp - PERP_FEE_BP;
+      if (actual >= lo - 1e-9 && actual <= hi + 1e-9) inRange++;
+    }
+    if (quoteIds.has(p.id) && token && typeof token.totalBp === "number" && p.route) {
+      heldChecks++;
+      const winner = token.totalBp <= perp.executionBp + PERP_FEE_BP + actual ? "rtoken" : "perp";
+      if (winner === p.route) held++;
+    }
+  }
+
+  const abs = errors.map(Math.abs);
+  return {
+    verifiable: errors.length > 0,
+    horizonDays: horizons,
+    elapsedDays: round(oldestMs / DAY, 1),
+    completed: done.length,
+    scored: errors.length,
+    from: done.map((p) => p.at).sort()[0] ?? null,
+    medianAbsErrorBp: round(median(abs), 3),
+    medianErrorBp: round(median(errors), 3),
+    withinRangePct: pct(inRange, rangeChecks),
+    rangeChecks,
+    heldPct: pct(held, heldChecks),
+    heldChecks,
+    note: errors.length
+      ? `${errors.length.toLocaleString("en-US")} funding forecasts have run their full 30 days and were checked against what Bitget actually charged.`
+      : "Each call projects funding over 30 days. Funding is scored once a forecast completes, and the figures above cover trading costs.",
+  };
+}
+
 async function main() {
   /*
    * The record covers calls made on the current pricing: the tokenized stock priced from Bitget's
@@ -320,20 +393,7 @@ async function main() {
     },
     stability: stabilityOut,
     flips: stability[60].flips,
-    /*
-     * Stated rather than scored. Every horizon logged is 30 days and the log is a couple of
-     * days old, so the funding half of every projection is still unresolved. Reporting a
-     * score for it would be inventing one.
-     */
-    funding: {
-      verifiable: false,
-      horizonDays: horizons,
-      elapsedDays: round(oldestMs / 86_400_000, 1),
-      note:
-        "Each call projects funding over 30 days. The oldest is " +
-        `${(oldestMs / 86_400_000).toFixed(1)} days in. Funding is scored once a forecast ` +
-        "completes, and the figures above cover trading costs.",
-    },
+    funding: await scoreFunding(logged, predictions, horizons, oldestMs),
   };
 
   await mkdir(dirname(OUT), { recursive: true });

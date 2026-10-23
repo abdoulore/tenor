@@ -12,6 +12,7 @@
  *   node engine/logger.ts --tickers A,B   override the watchlist
  */
 
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { sessionLabel } from "./book.ts";
 import { priceIntent } from "./engine.ts";
@@ -52,6 +53,39 @@ const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
 
 /** Resolved once and reused, since instrument lists barely move and the calls are not free. */
 const pairCache = new Map<string, Awaited<ReturnType<typeof resolvePair>>>();
+
+/*
+ * Funding history, kept beside the prediction log so the 30 day funding forecasts can be scored
+ * later against what was actually charged, without needing Bitget at scoring time. One file per
+ * contract, funding-<TICKER>.ndjson, merged and rewritten at most once an hour. 45 days are
+ * fetched so a forecast made a month ago still has its whole window on file.
+ */
+const FUNDING_EVERY_MS = 3_600_000;
+const FUNDING_LOOKBACK_DAYS = 45;
+let fundingAt = 0;
+
+async function recordFunding(): Promise<number> {
+  let files = 0;
+  for (const ticker of TICKERS) {
+    const pair = pairCache.get(ticker);
+    if (!pair) continue;
+    const fresh = await fetchFunding(pair.perpSymbol, FUNDING_LOOKBACK_DAYS).catch(() => []);
+    if (!fresh.length) continue;
+    const file = join(PRED_DIR, `funding-${ticker}.ndjson`);
+    const byTs = new Map<number, number>();
+    for (const line of (await readFile(file, "utf8").catch(() => "")).split("\n")) {
+      if (!line.trim()) continue;
+      try { const r = JSON.parse(line); byTs.set(r.ts, r.rate); } catch { /* skip a torn line */ }
+    }
+    for (const s of fresh) byTs.set(s.ts, s.rate);
+    const body = [...byTs].sort((a, b) => a[0] - b[0]).map(([ts, rate]) => JSON.stringify({ ts, rate, symbol: pair.perpSymbol })).join("\n") + "\n";
+    // Written aside and renamed, so a pull never sees half a file.
+    await writeFile(`${file}.tmp`, body, "utf8");
+    await rename(`${file}.tmp`, file);
+    files++;
+  }
+  return files;
+}
 
 async function pass(): Promise<{ written: number; failed: number }> {
   const session = sessionLabel(new Date()) as Session;
@@ -110,6 +144,11 @@ async function main(): Promise<void> {
       const { written, failed } = await pass();
       const session = sessionLabel(new Date());
       log(`pass done in ${Math.round((Date.now() - t0) / 1000)}s, session ${session}, ${written} logged, ${failed} failed`);
+      if (Date.now() - fundingAt > FUNDING_EVERY_MS) {
+        fundingAt = Date.now();
+        const n = await recordFunding().catch((e) => { log(`funding record failed: ${(e as Error)?.message ?? e}`); return 0; });
+        log(`funding history recorded for ${n} contracts`);
+      }
     } catch (e) {
       // Losing a pass is bad. Dying is worse, because the gap cannot be filled in later.
       log(`pass error: ${(e as Error)?.message ?? e}`);
